@@ -77,12 +77,9 @@ st.caption(
 
 sokterm = st.text_input(
     "Boktitel eller ISBN",
-    placeholder="t.ex. Blodlust eller 9789129750768",
+    placeholder="Boktitel eller ISBN",
 )
-st.caption(
-    "💡 För bäst resultat: sök på **fullständig titel** (inte bara ett ord) "
-    "eller **ISBN**. ISBN ger säkrast träff eftersom det pekar på exakt utgåva."
-)
+st.caption("För bästa resultat: sök på fullständig titel.")
 sok_knapp = st.button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
