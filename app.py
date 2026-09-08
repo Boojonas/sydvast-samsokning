@@ -1,15 +1,15 @@
 """
 SAMSÖKNING NÄTVERKET SYDVÄST - Webbgränssnitt (Streamlit)
 
-Detta är samma sökmotor som vi byggt och testat i Colab, nu paketerad
-som en enkel webbapp. Redo att köras lokalt (streamlit run app.py)
-eller deployas gratis på Streamlit Community Cloud (se instruktioner
-i chatten).
+Sök boktitel eller ISBN mot LIBRIS öppna API, filtrerat på de nio
+biblioteken i Nätverket Sydväst. Kör sökningarna parallellt för snabbare
+svarstid.
 """
 
 import streamlit as st
 import requests
-import time
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 FIND_URL = "https://libris.kb.se/find"
 
@@ -33,21 +33,35 @@ HEADERS = {
     "Accept": "application/ld+json, application/json",
 }
 
-DELAY_SECONDS = 1.0
+MAX_PARALLELLA_ANROP = 6  # hövlig gräns - inte alla anrop på en gång
 
 
-def sok_bibliotek(titel: str, sigel: str):
-    """Söker ett enskilt bibliotek och returnerar (antal_träffar, felmeddelande)."""
-    query = f'{titel} instanceCategory:"idrda:Volume" library:"libris:library/org/{sigel}"'
+def ar_isbn(text: str) -> bool:
+    """Avgör om söktexten ser ut som ett ISBN (10 eller 13 siffror, ev. med
+    bindestreck/mellanslag, ISBN-10 kan sluta på X)."""
+    rensat = re.sub(r"[\s-]", "", text)
+    return bool(re.fullmatch(r"\d{9}[\dXx]|\d{13}", rensat))
+
+
+def bygg_sokfraga(sokterm: str) -> str:
+    if ar_isbn(sokterm):
+        isbn_rensat = re.sub(r"[\s-]", "", sokterm)
+        return f'isbn:{isbn_rensat} instanceCategory:"idrda:Volume"'
+    return f'{sokterm} instanceCategory:"idrda:Volume"'
+
+
+def sok_bibliotek(bas_fraga: str, sigel: str):
+    """Söker ett enskilt bibliotek och returnerar (sigel, antal_träffar, felmeddelande)."""
+    query = f'{bas_fraga} library:"libris:library/org/{sigel}"'
     try:
         resp = requests.get(FIND_URL, params={"_q": query}, headers=HEADERS, timeout=20)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("totalItems", 0), None
+        return sigel, data.get("totalItems", 0), None
     except requests.exceptions.RequestException as e:
-        return None, str(e)
+        return sigel, None, str(e)
     except ValueError:
-        return None, "kunde inte tolka svaret"
+        return sigel, None, "kunde inte tolka svaret"
 
 
 # ---------------------------------------------------------------------------
@@ -61,36 +75,59 @@ st.caption(
     "via LIBRIS öppna API. Visar endast tryckta böcker."
 )
 
-titel = st.text_input("Boktitel", placeholder="t.ex. Blodlust")
+sokterm = st.text_input(
+    "Boktitel eller ISBN",
+    placeholder="t.ex. Blodlust eller 9789129750768",
+)
+st.caption(
+    "💡 För bäst resultat: sök på **fullständig titel** (inte bara ett ord) "
+    "eller **ISBN**. ISBN ger säkrast träff eftersom det pekar på exakt utgåva."
+)
 sok_knapp = st.button("Sök", type="primary")
 
-if sok_knapp and titel.strip():
+if sok_knapp and sokterm.strip():
+    sokterm = sokterm.strip()
+    bas_fraga = bygg_sokfraga(sokterm)
+
+    # Bygg en lista av (kod, sigel) att söka - vissa bibliotek har flera sigler
+    uppgifter = [
+        (kod, sigel)
+        for kod, info in SIGLAR.items()
+        for sigel in info["sigler"]
+    ]
+
+    traffar_per_kod = {kod: 0 for kod in SIGLAR}
+    fel_per_kod = {}
+
+    with st.spinner(f"Söker hos {len(SIGLAR)} bibliotek samtidigt..."):
+        with ThreadPoolExecutor(max_workers=MAX_PARALLELLA_ANROP) as executor:
+            framtida = {
+                executor.submit(sok_bibliotek, bas_fraga, sigel): kod
+                for kod, sigel in uppgifter
+            }
+            for f in as_completed(framtida):
+                kod = framtida[f]
+                sigel, antal, felmeddelande = f.result()
+                if felmeddelande:
+                    fel_per_kod[kod] = felmeddelande
+                elif antal:
+                    traffar_per_kod[kod] += antal
+
     resultat = []
-    progress = st.progress(0, text="Söker...")
-
-    for i, (kod, info) in enumerate(SIGLAR.items()):
+    for kod, info in SIGLAR.items():
         kommun = info["namn"]
-        traff_totalt = 0
-        fel = None
+        if kod in fel_per_kod:
+            status = "⚠️ Fel"
+            antal_visning = "-"
+        elif traffar_per_kod[kod] > 0:
+            status = "✅ Finns"
+            antal_visning = traffar_per_kod[kod]
+        else:
+            status = "❌ Finns ej"
+            antal_visning = 0
+        resultat.append({"Bibliotek": kommun, "Status": status, "Antal poster": antal_visning})
 
-        for sigel in info["sigler"]:
-            antal, felmeddelande = sok_bibliotek(titel.strip(), sigel)
-            if felmeddelande:
-                fel = felmeddelande
-            elif antal:
-                traff_totalt += antal
-            time.sleep(DELAY_SECONDS)
-
-        resultat.append({
-            "Bibliotek": kommun,
-            "Status": "⚠️ Fel" if fel else ("✅ Finns" if traff_totalt > 0 else "❌ Finns ej"),
-            "Antal poster": traff_totalt if not fel else "-",
-        })
-        progress.progress((i + 1) / len(SIGLAR), text=f"Sökt {kommun}...")
-
-    progress.empty()
-
-    st.subheader(f"Resultat för \"{titel.strip()}\"")
+    st.subheader(f"Resultat för \"{sokterm}\"")
     st.table(resultat)
 
     antal_traffar = sum(1 for r in resultat if r["Status"] == "✅ Finns")
@@ -105,4 +142,4 @@ if sok_knapp and titel.strip():
     )
 
 elif sok_knapp:
-    st.warning("Skriv in en boktitel att söka efter.")
+    st.warning("Skriv in en boktitel eller ett ISBN att söka efter.")
