@@ -78,8 +78,9 @@ st.caption(
 sokterm = st.text_input(
     "Boktitel eller ISBN",
     placeholder="Boktitel eller ISBN",
+    label_visibility="collapsed",
 )
-st.caption("För bästa resultat: sök på fullständig titel.")
+st.caption("💡 För bästa resultat: sök på fullständig titel.")
 sok_knapp = st.button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
