@@ -10,6 +10,7 @@ import streamlit as st
 import requests
 import re
 import socket
+import time
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -116,18 +117,58 @@ def bygg_sokfraga(sokterm: str) -> str:
     return f'{sokterm} instanceCategory:"idrda:Volume"'
 
 
-def sok_bibliotek(bas_fraga: str, sigel: str):
-    """Söker ett enskilt bibliotek och returnerar (sigel, antal_träffar, felmeddelande)."""
+def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
+    """Söker ett enskilt bibliotek och returnerar (sigel, antal_träffar, felmeddelande).
+    Försöker om vid tillfälliga anslutningsfel (timeout etc), med kort paus emellan,
+    innan det räknas som ett riktigt fel."""
     query = f'{bas_fraga} library:"libris:library/org/{sigel}"'
-    try:
-        resp = requests.get(FIND_URL, params={"_q": query}, headers=HEADERS, timeout=20)
-        resp.raise_for_status()
-        data = resp.json()
-        return sigel, data.get("totalItems", 0), None
-    except requests.exceptions.RequestException as e:
-        return sigel, None, str(e)
-    except ValueError:
-        return sigel, None, "kunde inte tolka svaret"
+    senaste_fel = None
+
+    for försök_nr in range(1, forsok + 1):
+        try:
+            resp = requests.get(FIND_URL, params={"_q": query}, headers=HEADERS, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+            return sigel, data.get("totalItems", 0), None
+        except requests.exceptions.RequestException as e:
+            senaste_fel = str(e)
+            if försök_nr < forsok:
+                time.sleep(2 * försök_nr)  # 2s, 4s, ... - ökande paus mellan försök
+        except ValueError:
+            senaste_fel = "kunde inte tolka svaret"
+            break  # inte en anslutningsfråga - inget att vinna på att försöka igen
+
+    return sigel, None, senaste_fel
+
+
+@st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
+def sok_alla_bibliotek(sokterm: str):
+    """Söker alla bibliotek för en given term och returnerar (träffar_per_kod, fel_per_kod)."""
+    bas_fraga = bygg_sokfraga(sokterm)
+
+    uppgifter = [
+        (kod, sigel)
+        for kod, info in SIGLAR.items()
+        for sigel in info["sigler"]
+    ]
+
+    traffar_per_kod = {kod: 0 for kod in SIGLAR}
+    fel_per_kod = {}
+
+    with ThreadPoolExecutor(max_workers=MAX_PARALLELLA_ANROP) as executor:
+        framtida = {
+            executor.submit(sok_bibliotek, bas_fraga, sigel): kod
+            for kod, sigel in uppgifter
+        }
+        for f in as_completed(framtida):
+            kod = framtida[f]
+            sigel, antal, felmeddelande = f.result()
+            if felmeddelande:
+                fel_per_kod[kod] = felmeddelande
+            elif antal:
+                traffar_per_kod[kod] += antal
+
+    return traffar_per_kod, fel_per_kod
 
 
 # ---------------------------------------------------------------------------
@@ -152,31 +193,9 @@ with st.form("sok_form"):
 
 if sok_knapp and sokterm.strip():
     sokterm = sokterm.strip()
-    bas_fraga = bygg_sokfraga(sokterm)
-
-    # Bygg en lista av (kod, sigel) att söka - vissa bibliotek har flera sigler
-    uppgifter = [
-        (kod, sigel)
-        for kod, info in SIGLAR.items()
-        for sigel in info["sigler"]
-    ]
-
-    traffar_per_kod = {kod: 0 for kod in SIGLAR}
-    fel_per_kod = {}
 
     with st.spinner(f"Söker hos {len(SIGLAR)} bibliotek samtidigt..."):
-        with ThreadPoolExecutor(max_workers=MAX_PARALLELLA_ANROP) as executor:
-            framtida = {
-                executor.submit(sok_bibliotek, bas_fraga, sigel): kod
-                for kod, sigel in uppgifter
-            }
-            for f in as_completed(framtida):
-                kod = framtida[f]
-                sigel, antal, felmeddelande = f.result()
-                if felmeddelande:
-                    fel_per_kod[kod] = felmeddelande
-                elif antal:
-                    traffar_per_kod[kod] += antal
+        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm)
 
     resultat = []
     for kod, info in SIGLAR.items():
