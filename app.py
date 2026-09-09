@@ -111,11 +111,11 @@ def bygg_sokfraga(sokterm: str) -> str:
     if ar_isbn(sokterm):
         isbn_rensat = re.sub(r"[\s-]", "", sokterm)
         return f'isbn:{isbn_rensat} instanceCategory:"idrda:Volume"'
-    # Citattecken tvingar fram frassökning (exakt ordföljd) istället för den
-    # bredare relevansbaserade matchningen, som gav falska träffar på
-    # böcker som bara delvis matchade söktermen.
-    sokterm_rensad = sokterm.replace('"', "")  # undvik trasig fråga om citattecken redan finns
-    return f'"{sokterm_rensad}" instanceCategory:"idrda:Volume"'
+    # Bekräftad syntax direkt från Libris find-API: title:(ord1 ord2 ord3)
+    # riktar sökningen mot titelfältet, vilket bör undvika brus från
+    # ämnesord/sammanfattningar som gav falska träffar tidigare.
+    sokterm_rensad = re.sub(r'["()]', "", sokterm)  # ta bort tecken som skulle förstöra syntaxen
+    return f'title:({sokterm_rensad}) instanceCategory:"idrda:Volume"'
 
 
 def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
