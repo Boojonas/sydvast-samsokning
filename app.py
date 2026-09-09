@@ -109,21 +109,14 @@ def bygg_arena_titelfraga(sokterm: str) -> str:
     return " AND ".join(grupper)
 
 
-def ar_isbn(text: str) -> bool:
-    """Avgör om söktexten ser ut som ett ISBN (10 eller 13 siffror, ev. med
-    bindestreck/mellanslag, ISBN-10 kan sluta på X)."""
-    rensat = re.sub(r"[\s-]", "", text)
-    return bool(re.fullmatch(r"\d{9}[\dXx]|\d{13}", rensat))
-
-
-def bygg_sokfraga(sokterm: str) -> str:
-    if ar_isbn(sokterm):
-        isbn_rensat = re.sub(r"[\s-]", "", sokterm)
-        return f'isbn:{isbn_rensat} instanceCategory:"idrda:Volume"'
+def bygg_sokfraga(sokterm: str, soktyp: str) -> str:
+    sokterm_rensad = re.sub(r'["()]', "", sokterm)
+    if soktyp == "ISBN":
+        isbn_rensat = re.sub(r"[\s-]", "", sokterm_rensad)
+        return f'isbn:({isbn_rensat}) instanceCategory:"idrda:Volume"'
     # Bekräftad syntax direkt från Libris find-API: title:(ord1 ord2 ord3)
     # riktar sökningen mot titelfältet, vilket bör undvika brus från
     # ämnesord/sammanfattningar som gav falska träffar tidigare.
-    sokterm_rensad = re.sub(r'["()]', "", sokterm)  # ta bort tecken som skulle förstöra syntaxen
     return f'title:({sokterm_rensad}) instanceCategory:"idrda:Volume"'
 
 
@@ -152,9 +145,9 @@ def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
 
 
 @st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
-def sok_alla_bibliotek(sokterm: str):
+def sok_alla_bibliotek(sokterm: str, soktyp: str):
     """Söker alla bibliotek för en given term och returnerar (träffar_per_kod, fel_per_kod)."""
-    bas_fraga = bygg_sokfraga(sokterm)
+    bas_fraga = bygg_sokfraga(sokterm, soktyp)
 
     uppgifter = [
         (kod, sigel)
@@ -217,23 +210,31 @@ st.caption(
 )
 
 with st.form("sok_form"):
-    sokterm = st.text_input(
-        "Boktitel eller ISBN",
-        placeholder="Boktitel eller ISBN",
+    soktyp = st.radio(
+        "Sök på", options=["Titel", "ISBN"], horizontal=True, index=0,
         label_visibility="collapsed",
     )
-    st.caption("💡 För bästa resultat: sök på fullständig titel.")
+    platshallare = "Boktitel" if soktyp == "Titel" else "ISBN (10 eller 13 siffror)"
+    sokterm = st.text_input(
+        "Sökterm", placeholder=platshallare, label_visibility="collapsed",
+    )
+    if soktyp == "Titel":
+        st.caption("💡 För bästa resultat: sök på fullständig titel.")
     sok_knapp = st.form_submit_button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
     sokterm = sokterm.strip()
 
     with st.spinner(f"Söker hos {len(SIGLAR)} bibliotek samtidigt..."):
-        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm)
+        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm, soktyp)
 
     resultat = []
     for kod, info in SIGLAR.items():
-        arena_fraga = bygg_arena_titelfraga(sokterm)
+        if soktyp == "ISBN":
+            # ISBN hör inte hemma i ett titelfält - länka med rå sökterm istället
+            arena_fraga = sokterm
+        else:
+            arena_fraga = bygg_arena_titelfraga(sokterm)
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
         kommun_lankad = f"[{info['namn']}]({sok_lank})"
         if kod in fel_per_kod:
@@ -272,4 +273,4 @@ if sok_knapp and sokterm.strip():
     )
 
 elif sok_knapp:
-    st.warning("Skriv in en boktitel eller ett ISBN att söka efter.")
+    st.warning("Skriv in en sökterm.")
