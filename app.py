@@ -9,8 +9,21 @@ svarstid.
 import streamlit as st
 import requests
 import re
+import socket
 from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Tvingar IPv4 - vissa molnmiljöer (Streamlit Cloud, Colab) har opålitlig
+# eller saknad IPv6-anslutning, vilket kan orsaka "Network unreachable"-fel
+# mot servrar som annonserar en IPv6-adress (AAAA-post).
+import urllib3.util.connection as urllib3_cn
+
+
+def _tvinga_ipv4():
+    return socket.AF_INET
+
+
+urllib3_cn.allowed_gai_family = _tvinga_ipv4
 
 FIND_URL = "https://libris.kb.se/find"
 
