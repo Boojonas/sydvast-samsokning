@@ -9,20 +9,73 @@ svarstid.
 import streamlit as st
 import requests
 import re
+from urllib.parse import quote_plus
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 FIND_URL = "https://libris.kb.se/find"
 
+ARENA_STANDARDMALL = (
+    "https://{domän}/search"
+    "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
+    "&p_r_p_arena_urn%3Aarena_facet_queries="
+    "&p_r_p_arena_urn%3Aarena_search_query={{query}}"
+    "&p_r_p_arena_urn%3Aarena_search_type=solr"
+    "&p_r_p_arena_urn%3Aarena_sort_advice=field%3DRelevance%26direction%3DDescending"
+)
+
 SIGLAR = {
-    "Arlo": {"namn": "Burlöv", "sigler": ["Arlo"], "url": "https://bibliotek.burlov.se"},
-    "Eslo": {"namn": "Eslöv", "sigler": ["ESLO"], "url": "https://bibliotek.eslov.se"},
-    "Hoor": {"namn": "Höör", "sigler": ["Hoor"], "url": "https://bibliotek.hoor.se"},
-    "Kavl": {"namn": "Kävlinge", "sigler": ["Kavl"], "url": "https://bibliotek.kavlinge.se"},
-    "LommaBjarred": {"namn": "Lomma/Bjärred", "sigler": ["LOBJ"], "url": "https://biblioteklb.se"},
-    "Staf": {"namn": "Staffanstorp", "sigler": ["Staf"], "url": "https://bibliotek.staffanstorp.se"},
-    "Trel": {"namn": "Trelleborg", "sigler": ["Trel"], "url": "https://bibliotek.trelleborg.se"},
-    "Vell": {"namn": "Vellinge", "sigler": ["Vell"], "url": "https://bibliotek.vellinge.se"},
-    "Sved": {"namn": "Svedala", "sigler": ["Sved"], "url": "https://bibliotek.svedala.se"},
+    "Arlo": {
+        "namn": "Burlöv", "sigler": ["Arlo"],
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.burlov.se"),
+    },
+    "Eslo": {
+        "namn": "Eslöv", "sigler": ["ESLO"],
+        # OBS: ej fullt bekräftad - härledd från samma mönster som övriga,
+        # eftersom testsökningen bara gav en träff och gick direkt till detaljsidan
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.eslov.se"),
+    },
+    "Hoor": {
+        "namn": "Höör", "sigler": ["Hoor"],
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.hoor.se"),
+    },
+    "Kavl": {
+        "namn": "Kävlinge", "sigler": ["Kavl"],
+        "sok_url": (
+            "https://bibliotek.kavlinge.se/web/arena/search"
+            "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
+            "&p_r_p_arena_urn%3Aarena_search_query={query}"
+            "&p_r_p_arena_urn%3Aarena_search_type=solr"
+            "&p_r_p_arena_urn%3Aarena_sort_advice=field%3DRelevance%26direction%3DDescending"
+        ),
+    },
+    "LommaBjarred": {
+        "namn": "Lomma/Bjärred", "sigler": ["LOBJ"],
+        "sok_url": ARENA_STANDARDMALL.format(domän="biblioteklb.se"),
+    },
+    "Staf": {
+        "namn": "Staffanstorp", "sigler": ["Staf"],
+        # OBS: ej fullt bekräftad - se kommentar för Eslöv ovan
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.staffanstorp.se"),
+    },
+    "Trel": {
+        "namn": "Trelleborg", "sigler": ["Trel"],
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.trelleborg.se"),
+    },
+    "Vell": {
+        "namn": "Vellinge", "sigler": ["Vell"],
+        "sok_url": (
+            "https://bibliotek.vellinge.se/web/arena/search-ny"
+            "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
+            "&p_r_p_arena_urn%3Aarena_facet_queries="
+            "&p_r_p_arena_urn%3Aarena_search_query={query}"
+            "&p_r_p_arena_urn%3Aarena_search_type=solr"
+            "&p_r_p_arena_urn%3Aarena_sort_advice=field%3DRelevance%26direction%3DDescending"
+        ),
+    },
+    "Sved": {
+        "namn": "Svedala", "sigler": ["Sved"],
+        "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.svedala.se"),
+    },
 }
 
 HEADERS = {
@@ -114,7 +167,8 @@ if sok_knapp and sokterm.strip():
 
     resultat = []
     for kod, info in SIGLAR.items():
-        kommun_lankad = f"[{info['namn']}]({info['url']})"
+        sok_lank = info["sok_url"].format(query=quote_plus(sokterm))
+        kommun_lankad = f"[{info['namn']}]({sok_lank})"
         if kod in fel_per_kod:
             status = "⚠️ Fel"
             antal_visning = "-"
