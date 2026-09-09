@@ -111,7 +111,14 @@ def bygg_sokfraga(sokterm: str) -> str:
     if ar_isbn(sokterm):
         isbn_rensat = re.sub(r"[\s-]", "", sokterm)
         return f'isbn:{isbn_rensat} instanceCategory:"idrda:Volume"'
-    return f'{sokterm} instanceCategory:"idrda:Volume"'
+    # Explicit AND mellan varje ord i söktermen - kräver att alla ord finns
+    # någonstans i posten (oavsett ordning eller mellanliggande skiljetecken
+    # som bindestreck), till skillnad från systemets annars OR-liknande
+    # tolkning av flera fristående ord. Operatorn måste skrivas med VERSALER
+    # för att tolkas som en operator och inte ett vanligt sökord.
+    ord_lista = sokterm.split()
+    sokterm_and = " AND ".join(ord_lista)
+    return f'{sokterm_and} instanceCategory:"idrda:Volume"'
 
 
 def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
