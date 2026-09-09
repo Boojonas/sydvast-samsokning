@@ -100,6 +100,15 @@ HEADERS = {
 MAX_PARALLELLA_ANROP = 3  # sänkt från 6 - färre samtidiga anrop är mindre "robotlikt"
 
 
+def bygg_arena_titelfraga(sokterm: str) -> str:
+    """Bygger en Arena-specifik titelfältssökning (title_index/titleMain_index)
+    för djuplänkar till bibliotekens egna kataloger, så att länken inte visar
+    samma brus som en obegränsad fritextsökning skulle ge."""
+    ord_lista = re.sub(r'["()]', "", sokterm).split()
+    grupper = [f"(title_index:{ord} OR titleMain_index:{ord})" for ord in ord_lista]
+    return " AND ".join(grupper)
+
+
 def ar_isbn(text: str) -> bool:
     """Avgör om söktexten ser ut som ett ISBN (10 eller 13 siffror, ev. med
     bindestreck/mellanslag, ISBN-10 kan sluta på X)."""
@@ -224,7 +233,8 @@ if sok_knapp and sokterm.strip():
 
     resultat = []
     for kod, info in SIGLAR.items():
-        sok_lank = info["sok_url"].format(query=quote_plus(sokterm))
+        arena_fraga = bygg_arena_titelfraga(sokterm)
+        sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
         kommun_lankad = f"[{info['namn']}]({sok_lank})"
         if kod in fel_per_kod:
             status = "⚠️ Fel"
