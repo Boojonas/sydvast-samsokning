@@ -78,7 +78,7 @@ SIGLAR = {
     "Vell": {
         "namn": "Vellinge", "sigler": ["Vell"],
         "sok_url": (
-            "https://bibliotek.vellinge.se/web/arena/search-ny"
+            "https://bibliotek.vellinge.se/web/arena/search"
             "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
             "&p_r_p_arena_urn%3Aarena_facet_queries="
             "&p_r_p_arena_urn%3Aarena_search_query={query}"
