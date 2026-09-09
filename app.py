@@ -209,17 +209,23 @@ st.caption(
     "via LIBRIS öppna API. Visar endast tryckta böcker."
 )
 
+soktyp = st.radio(
+    "Sök på", options=["Titel", "ISBN"], horizontal=True, index=0,
+    label_visibility="collapsed",
+)
+platshallare = "Boktitel" if soktyp == "Titel" else "ISBN (10 eller 13 siffror)"
+
 with st.form("sok_form"):
-    soktyp = st.radio(
-        "Sök på", options=["Titel", "ISBN"], horizontal=True, index=0,
-        label_visibility="collapsed",
-    )
-    platshallare = "Boktitel" if soktyp == "Titel" else "ISBN (10 eller 13 siffror)"
     sokterm = st.text_input(
         "Sökterm", placeholder=platshallare, label_visibility="collapsed",
     )
     if soktyp == "Titel":
-        st.caption("💡 För bästa resultat: sök på fullständig titel.")
+        st.caption(
+            "💡 För bästa resultat: sök på fullständig titel. Klicka på "
+            "någon av de länkade biblioteken för att se lånestatus."
+        )
+    else:
+        st.caption("💡 Klicka på någon av de länkade biblioteken för att se lånestatus.")
     sok_knapp = st.form_submit_button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
