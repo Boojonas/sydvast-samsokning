@@ -86,7 +86,7 @@ HEADERS = {
     "Accept": "application/ld+json, application/json",
 }
 
-MAX_PARALLELLA_ANROP = 6  # hövlig gräns - inte alla anrop på en gång
+MAX_PARALLELLA_ANROP = 3  # sänkt från 6 - färre samtidiga anrop är mindre "robotlikt"
 
 
 def ar_isbn(text: str) -> bool:
@@ -187,6 +187,11 @@ if sok_knapp and sokterm.strip():
     for r in resultat:
         tabell_rader.append(f"| {r['Bibliotek']} | {r['Status']} | {r['Antal poster']} |")
     st.markdown("\n".join(tabell_rader))
+
+    if fel_per_kod:
+        with st.expander("⚠️ Se felmeddelanden (för felsökning)"):
+            for kod, felmeddelande in fel_per_kod.items():
+                st.write(f"**{SIGLAR[kod]['namn']}**: {felmeddelande}")
 
     antal_traffar = sum(1 for r in resultat if r["Status"] == "✅ Finns")
     if antal_traffar == 0:
