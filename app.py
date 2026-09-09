@@ -93,10 +93,7 @@ SIGLAR = {
 }
 
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-    ),
+    "User-Agent": "SydvastSamsokning/1.0 (kontakt: jonas.g.elofsson@vellinge.se)",
     "Accept": "application/ld+json, application/json",
 }
 
@@ -175,6 +172,30 @@ def sok_alla_bibliotek(sokterm: str):
 # WEBBGRÄNSSNITT
 # ---------------------------------------------------------------------------
 st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon="📚")
+
+# --- Enkelt lösenordsskydd ---
+def kolla_losenord():
+    def losenord_angivet():
+        if st.session_state.get("losenord_falt") == st.secrets.get("app_losenord"):
+            st.session_state["inloggad"] = True
+            del st.session_state["losenord_falt"]
+        else:
+            st.session_state["inloggad"] = False
+
+    if st.session_state.get("inloggad"):
+        return True
+
+    st.text_input(
+        "Lösenord", type="password", on_change=losenord_angivet, key="losenord_falt"
+    )
+    if st.session_state.get("inloggad") is False:
+        st.error("Fel lösenord.")
+    return False
+
+
+if not kolla_losenord():
+    st.stop()
+# --- Slut lösenordsskydd ---
 
 st.title("📚 Samsökning – Nätverket Sydväst")
 st.caption(
