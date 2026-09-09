@@ -14,15 +14,15 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 FIND_URL = "https://libris.kb.se/find"
 
 SIGLAR = {
-    "Arlo": {"namn": "Burlöv", "sigler": ["Arlo"]},
-    "Eslo": {"namn": "Eslöv", "sigler": ["ESLO"]},
-    "Hoor": {"namn": "Höör", "sigler": ["Hoor"]},
-    "Kavl": {"namn": "Kävlinge", "sigler": ["Kavl"]},
-    "LommaBjarred": {"namn": "Lomma/Bjärred", "sigler": ["LOBJ"]},
-    "Staf": {"namn": "Staffanstorp", "sigler": ["Staf"]},
-    "Trel": {"namn": "Trelleborg", "sigler": ["Trel"]},
-    "Vell": {"namn": "Vellinge", "sigler": ["Vell"]},
-    "Sved": {"namn": "Svedala", "sigler": ["Sved"]},
+    "Arlo": {"namn": "Burlöv", "sigler": ["Arlo"], "url": "https://bibliotek.burlov.se"},
+    "Eslo": {"namn": "Eslöv", "sigler": ["ESLO"], "url": "https://bibliotek.eslov.se"},
+    "Hoor": {"namn": "Höör", "sigler": ["Hoor"], "url": "https://bibliotek.hoor.se"},
+    "Kavl": {"namn": "Kävlinge", "sigler": ["Kavl"], "url": "https://bibliotek.kavlinge.se"},
+    "LommaBjarred": {"namn": "Lomma/Bjärred", "sigler": ["LOBJ"], "url": "https://biblioteklb.se"},
+    "Staf": {"namn": "Staffanstorp", "sigler": ["Staf"], "url": "https://bibliotek.staffanstorp.se"},
+    "Trel": {"namn": "Trelleborg", "sigler": ["Trel"], "url": "https://bibliotek.trelleborg.se"},
+    "Vell": {"namn": "Vellinge", "sigler": ["Vell"], "url": "https://bibliotek.vellinge.se"},
+    "Sved": {"namn": "Svedala", "sigler": ["Sved"], "url": "https://bibliotek.svedala.se"},
 }
 
 HEADERS = {
@@ -75,13 +75,14 @@ st.caption(
     "via LIBRIS öppna API. Visar endast tryckta böcker."
 )
 
-sokterm = st.text_input(
-    "Boktitel eller ISBN",
-    placeholder="Boktitel eller ISBN",
-    label_visibility="collapsed",
-)
-st.caption("💡 För bästa resultat: sök på fullständig titel.")
-sok_knapp = st.button("Sök", type="primary")
+with st.form("sok_form"):
+    sokterm = st.text_input(
+        "Boktitel eller ISBN",
+        placeholder="Boktitel eller ISBN",
+        label_visibility="collapsed",
+    )
+    st.caption("💡 För bästa resultat: sök på fullständig titel.")
+    sok_knapp = st.form_submit_button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
     sokterm = sokterm.strip()
@@ -113,7 +114,7 @@ if sok_knapp and sokterm.strip():
 
     resultat = []
     for kod, info in SIGLAR.items():
-        kommun = info["namn"]
+        kommun_lankad = f"[{info['namn']}]({info['url']})"
         if kod in fel_per_kod:
             status = "⚠️ Fel"
             antal_visning = "-"
@@ -123,10 +124,15 @@ if sok_knapp and sokterm.strip():
         else:
             status = "❌ Finns ej"
             antal_visning = 0
-        resultat.append({"Bibliotek": kommun, "Status": status, "Antal poster": antal_visning})
+        resultat.append({"Bibliotek": kommun_lankad, "Status": status, "Antal poster": antal_visning})
 
     st.subheader(f"Resultat för \"{sokterm}\"")
-    st.table(resultat)
+
+    # Bygger en markdown-tabell manuellt så att biblioteksnamnen blir klickbara länkar
+    tabell_rader = ["| Bibliotek | Status | Antal poster |", "|---|---|---|"]
+    for r in resultat:
+        tabell_rader.append(f"| {r['Bibliotek']} | {r['Status']} | {r['Antal poster']} |")
+    st.markdown("\n".join(tabell_rader))
 
     antal_traffar = sum(1 for r in resultat if r["Status"] == "✅ Finns")
     if antal_traffar == 0:
@@ -135,8 +141,8 @@ if sok_knapp and sokterm.strip():
         st.success(f"Boken finns hos {antal_traffar} av 9 bibliotek.")
 
     st.caption(
-        "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Dubbelkolla "
-        "manuellt vid osäkerhet, särskilt för nyinköpta eller nyutlånade titlar."
+        "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
+        "är inte sökbart och aktuell lånestatus visas inte."
     )
 
 elif sok_knapp:
