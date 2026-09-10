@@ -240,9 +240,10 @@ with st.form("sok_form"):
             label_visibility="collapsed",
         )
         st.caption(
-            "💡 För bästa resultat: sök på fullständig titel, gärna med "
-            "författare om titeln är vanlig. Klicka på någon av de länkade "
-            "biblioteken för att se lånestatus."
+            "💡 ISBN är att föredra när det finns tillgängligt – det ger säkrast "
+            "träff. För bästa resultat vid titelsökning: sök på fullständig "
+            "titel, gärna med författare om titeln är vanlig. Klicka på någon "
+            "av de länkade biblioteken för att se lånestatus."
         )
     else:
         st.caption("💡 Klicka på någon av de länkade biblioteken för att se lånestatus.")
