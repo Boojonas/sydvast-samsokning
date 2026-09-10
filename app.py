@@ -109,6 +109,14 @@ def bygg_arena_titelfraga(sokterm: str) -> str:
     return " AND ".join(grupper)
 
 
+def bygg_arena_forfattarfraga(forfattare: str) -> str:
+    """Bygger en Arena-specifik författarsökning (author_index/contributor_index),
+    enligt samma bekräftade mönster som titelsökningen."""
+    ord_lista = re.sub(r'["()]', "", forfattare).split()
+    grupper = [f"(author_index:{ord} OR contributor_index:{ord})" for ord in ord_lista]
+    return " AND ".join(grupper)
+
+
 def bygg_sokfraga(sokterm: str, soktyp: str, forfattare: str = "") -> str:
     sokterm_rensad = re.sub(r'["()]', "", sokterm)
     if soktyp == "ISBN":
@@ -254,6 +262,8 @@ if sok_knapp and sokterm.strip():
             arena_fraga = sokterm
         else:
             arena_fraga = bygg_arena_titelfraga(sokterm)
+            if forfattare:
+                arena_fraga = f"{bygg_arena_forfattarfraga(forfattare)} AND {arena_fraga}"
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
         kommun_lankad = f"[{info['namn']}]({sok_lank})"
         if kod in fel_per_kod:
