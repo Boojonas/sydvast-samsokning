@@ -1,9 +1,11 @@
 """
 SAMSÖKNING NÄTVERKET SYDVÄST - Webbgränssnitt (Streamlit)
 
-Sök boktitel eller ISBN mot LIBRIS öppna API, filtrerat på de nio
-biblioteken i Nätverket Sydväst. Kör sökningarna parallellt för snabbare
-svarstid.
+Sök boktitel eller ISBN mot LIBRIS öppna API. Gör ETT anrop och navigerar
+lokalt i verk -> instans -> exemplar-strukturen för att korrekt avgöra
+vilka av de nio biblioteken som har boken i FYSISKT format - detta undviker
+ett upptäckt fel där bibliotek- och formatfilter annars kan matcha olika
+instanser av samma verk oberoende av varandra.
 """
 
 import streamlit as st
@@ -12,7 +14,6 @@ import re
 import socket
 import time
 from urllib.parse import quote_plus
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Tvingar IPv4 - vissa molnmiljöer (Streamlit Cloud, Colab) har opålitlig
 # eller saknad IPv6-anslutning, vilket kan orsaka "Network unreachable"-fel
@@ -97,8 +98,6 @@ HEADERS = {
     "Accept": "application/ld+json, application/json",
 }
 
-MAX_PARALLELLA_ANROP = 3  # sänkt från 6 - färre samtidiga anrop är mindre "robotlikt"
-
 
 def bygg_arena_titelfraga(sokterm: str) -> str:
     """Bygger en Arena-specifik titelfältssökning (title_index/titleMain_index)
@@ -118,74 +117,80 @@ def bygg_arena_forfattarfraga(forfattare: str) -> str:
 
 
 def bygg_sokfraga(sokterm: str, soktyp: str, forfattare: str = "") -> str:
+    """Bygger frågan UTAN bibliotek-filter - vi hämtar alla fysiska instanser
+    och kontrollerar bestånd lokalt istället, för att undvika att bibliotek-
+    och formatfilter matchar olika instanser av samma verk (se kommentar i
+    sok_alla_bibliotek)."""
     sokterm_rensad = re.sub(r'["()]', "", sokterm)
     if soktyp == "ISBN":
         isbn_rensat = re.sub(r"[\s-]", "", sokterm_rensad)
         return f'isbn:({isbn_rensat}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
-    # Bekräftad syntax direkt från Libris find-API: title:(ord1 ord2 ord3)
-    # riktar sökningen mot titelfältet. instanceCategory bekräftat korrekt
-    # (till skillnad från idrda:Volume) för att korrekt utesluta e-böcker
-    # som delar verkspost med den tryckta utgåvan.
     fraga = f'title:({sokterm_rensad}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
     forfattare_rensad = re.sub(r'["()]', "", forfattare).strip()
     if forfattare_rensad:
-        # Bekräftad syntax: contributor:(namn) - samma parentesmönster som titel
         fraga += f' contributor:({forfattare_rensad})'
     return fraga
 
 
-def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
-    """Söker ett enskilt bibliotek och returnerar (sigel, antal_träffar, felmeddelande).
-    Försöker om vid tillfälliga anslutningsfel (timeout etc), med kort paus emellan,
-    innan det räknas som ett riktigt fel."""
-    query = f'{bas_fraga} library:"libris:library/org/{sigel}"'
-    senaste_fel = None
+@st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
+def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: int = 3):
+    """Gör ETT anrop mot Libris (istället för ett per bibliotek) och navigerar
+    lokalt i verk -> instans -> exemplar-strukturen. Detta undviker det fel
+    vi upptäckte där en kombinerad fråga (titel+format+bibliotek) kan matcha
+    olika instanser av samma verk oberoende av varandra (t.ex. att biblioteket
+    bara har e-boken, men frågan ändå gav träff eftersom NÅGON instans av
+    verket är tryckt OCH NÅGON instans finns hos biblioteket - inte
+    nödvändigtvis samma instans).
 
+    Returnerar (träffar_per_kod, fel_per_kod) - träffar_per_kod räknar antal
+    matchande exemplarposter (kan vara >1 om titeln inte är unik och flera
+    orelaterade verk träffas - använd författarfältet för att undvika det)."""
+    fraga = bygg_sokfraga(sokterm, soktyp, forfattare)
+
+    senaste_fel = None
+    data = None
     for försök_nr in range(1, forsok + 1):
         try:
-            resp = requests.get(FIND_URL, params={"_q": query}, headers=HEADERS, timeout=20)
+            resp = requests.get(FIND_URL, params={"_q": fraga}, headers=HEADERS, timeout=20)
             resp.raise_for_status()
             data = resp.json()
-            return sigel, data.get("totalItems", 0), None
+            break
         except requests.exceptions.RequestException as e:
             senaste_fel = str(e)
             if försök_nr < forsok:
-                time.sleep(2 * försök_nr)  # 2s, 4s, ... - ökande paus mellan försök
+                time.sleep(2 * försök_nr)
         except ValueError:
             senaste_fel = "kunde inte tolka svaret"
-            break  # inte en anslutningsfråga - inget att vinna på att försöka igen
-
-    return sigel, None, senaste_fel
-
-
-@st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
-def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = ""):
-    """Söker alla bibliotek för en given term och returnerar (träffar_per_kod, fel_per_kod)."""
-    bas_fraga = bygg_sokfraga(sokterm, soktyp, forfattare)
-
-    uppgifter = [
-        (kod, sigel)
-        for kod, info in SIGLAR.items()
-        for sigel in info["sigler"]
-    ]
+            break
 
     traffar_per_kod = {kod: 0 for kod in SIGLAR}
-    fel_per_kod = {}
 
-    with ThreadPoolExecutor(max_workers=MAX_PARALLELLA_ANROP) as executor:
-        framtida = {
-            executor.submit(sok_bibliotek, bas_fraga, sigel): kod
-            for kod, sigel in uppgifter
-        }
-        for f in as_completed(framtida):
-            kod = framtida[f]
-            sigel, antal, felmeddelande = f.result()
-            if felmeddelande:
-                fel_per_kod[kod] = felmeddelande
-            elif antal:
-                traffar_per_kod[kod] += antal
+    if data is None:
+        # Anropet misslyckades helt - markera alla bibliotek med samma fel,
+        # så användaren ser det tydligt istället för att allt bara visar "Finns ej"
+        fel_per_kod = {kod: senaste_fel for kod in SIGLAR}
+        return traffar_per_kod, fel_per_kod
 
-    return traffar_per_kod, fel_per_kod
+    verk_lista = data.get("items", [])
+
+    for verk in verk_lista:
+        instanser = verk.get("@reverse", {}).get("instanceOf", [])
+        for instans in instanser:
+            if instans.get("@type") != "PhysicalResource":
+                continue  # hoppa över e-böcker/ljudböcker etc.
+            exemplar_lista = instans.get("@reverse", {}).get("itemOf", [])
+            for exemplar in exemplar_lista:
+                held_by = exemplar.get("heldBy", {})
+                sigel_kandidater = {
+                    held_by.get("@id", "").split("/")[-1],
+                    held_by.get("isPartOf", {}).get("@id", "").split("/")[-1],
+                }
+                for kod, info in SIGLAR.items():
+                    for sigel in info["sigler"]:
+                        if sigel in sigel_kandidater:
+                            traffar_per_kod[kod] += 1
+
+    return traffar_per_kod, {}
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +258,7 @@ if sok_knapp and sokterm.strip():
     sokterm = sokterm.strip()
     forfattare = forfattare.strip()
 
-    with st.spinner(f"Söker hos {len(SIGLAR)} bibliotek samtidigt..."):
+    with st.spinner("Söker..."):
         traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm, soktyp, forfattare)
 
     resultat = []
@@ -299,9 +304,8 @@ if sok_knapp and sokterm.strip():
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart och aktuell lånestatus visas inte. För titlar som "
-        "finns i både tryckt och digital utgåva kan resultatet ibland bli "
-        "missvisande – dubbelkolla vid osäkerhet genom att klicka på biblioteket."
+        "är inte sökbart och aktuell lånestatus visas inte. Dubbelkolla vid "
+        "osäkerhet genom att klicka på biblioteket."
     )
 
 elif sok_knapp:
