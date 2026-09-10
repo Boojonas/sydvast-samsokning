@@ -113,11 +113,12 @@ def bygg_sokfraga(sokterm: str, soktyp: str) -> str:
     sokterm_rensad = re.sub(r'["()]', "", sokterm)
     if soktyp == "ISBN":
         isbn_rensat = re.sub(r"[\s-]", "", sokterm_rensad)
-        return f'isbn:({isbn_rensat}) instanceCategory:"idrda:Volume"'
+        return f'isbn:({isbn_rensat}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
     # Bekräftad syntax direkt från Libris find-API: title:(ord1 ord2 ord3)
-    # riktar sökningen mot titelfältet, vilket bör undvika brus från
-    # ämnesord/sammanfattningar som gav falska träffar tidigare.
-    return f'title:({sokterm_rensad}) instanceCategory:"idrda:Volume"'
+    # riktar sökningen mot titelfältet. instanceCategory bekräftat korrekt
+    # (till skillnad från idrda:Volume) för att korrekt utesluta e-böcker
+    # som delar verkspost med den tryckta utgåvan.
+    return f'title:({sokterm_rensad}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
 
 
 def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
