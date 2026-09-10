@@ -109,7 +109,7 @@ def bygg_arena_titelfraga(sokterm: str) -> str:
     return " AND ".join(grupper)
 
 
-def bygg_sokfraga(sokterm: str, soktyp: str) -> str:
+def bygg_sokfraga(sokterm: str, soktyp: str, forfattare: str = "") -> str:
     sokterm_rensad = re.sub(r'["()]', "", sokterm)
     if soktyp == "ISBN":
         isbn_rensat = re.sub(r"[\s-]", "", sokterm_rensad)
@@ -118,7 +118,12 @@ def bygg_sokfraga(sokterm: str, soktyp: str) -> str:
     # riktar sökningen mot titelfältet. instanceCategory bekräftat korrekt
     # (till skillnad från idrda:Volume) för att korrekt utesluta e-böcker
     # som delar verkspost med den tryckta utgåvan.
-    return f'title:({sokterm_rensad}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
+    fraga = f'title:({sokterm_rensad}) instanceCategory:"https://id.kb.se/term/saobf/Print"'
+    forfattare_rensad = re.sub(r'["()]', "", forfattare).strip()
+    if forfattare_rensad:
+        # Bekräftad syntax: contributor:(namn) - samma parentesmönster som titel
+        fraga += f' contributor:({forfattare_rensad})'
+    return fraga
 
 
 def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
@@ -146,9 +151,9 @@ def sok_bibliotek(bas_fraga: str, sigel: str, forsok: int = 3):
 
 
 @st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
-def sok_alla_bibliotek(sokterm: str, soktyp: str):
+def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = ""):
     """Söker alla bibliotek för en given term och returnerar (träffar_per_kod, fel_per_kod)."""
-    bas_fraga = bygg_sokfraga(sokterm, soktyp)
+    bas_fraga = bygg_sokfraga(sokterm, soktyp, forfattare)
 
     uppgifter = [
         (kod, sigel)
@@ -220,10 +225,16 @@ with st.form("sok_form"):
     sokterm = st.text_input(
         "Sökterm", placeholder=platshallare, label_visibility="collapsed",
     )
+    forfattare = ""
     if soktyp == "Titel":
+        forfattare = st.text_input(
+            "Författare (valfritt)", placeholder="Författare (valfritt)",
+            label_visibility="collapsed",
+        )
         st.caption(
-            "💡 För bästa resultat: sök på fullständig titel. Klicka på "
-            "någon av de länkade biblioteken för att se lånestatus."
+            "💡 För bästa resultat: sök på fullständig titel, gärna med "
+            "författare om titeln är vanlig. Klicka på någon av de länkade "
+            "biblioteken för att se lånestatus."
         )
     else:
         st.caption("💡 Klicka på någon av de länkade biblioteken för att se lånestatus.")
@@ -231,9 +242,10 @@ with st.form("sok_form"):
 
 if sok_knapp and sokterm.strip():
     sokterm = sokterm.strip()
+    forfattare = forfattare.strip()
 
     with st.spinner(f"Söker hos {len(SIGLAR)} bibliotek samtidigt..."):
-        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm, soktyp)
+        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm, soktyp, forfattare)
 
     resultat = []
     for kod, info in SIGLAR.items():
