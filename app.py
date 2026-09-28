@@ -198,6 +198,41 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
 # ---------------------------------------------------------------------------
 st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon="📚")
 
+# --- Ökad kontrast ---
+# Streamlits standardtext för hjälptexter (captions) är ljusgrå och svårläst
+# på stora skärmar. Färgerna följer webbläsarens/systemets ljust/mörkt-läge.
+st.markdown(
+    """
+    <style>
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] * {
+        opacity: 1 !important;
+        font-size: 0.95rem !important;
+    }
+    [data-testid="stMarkdownContainer"] table th,
+    [data-testid="stMarkdownContainer"] table td {
+        border: 1px solid #888 !important;
+    }
+    @media (prefers-color-scheme: light) {
+        [data-testid="stCaptionContainer"],
+        [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
+        input::placeholder { color: #4a4a4a !important; opacity: 1 !important; }
+        [data-testid="stMarkdownContainer"] table th,
+        [data-testid="stMarkdownContainer"] table td { color: #111111 !important; }
+    }
+    @media (prefers-color-scheme: dark) {
+        [data-testid="stCaptionContainer"],
+        [data-testid="stCaptionContainer"] * { color: #f2f2f2 !important; }
+        input::placeholder { color: #c8c8c8 !important; opacity: 1 !important; }
+        [data-testid="stMarkdownContainer"] table th,
+        [data-testid="stMarkdownContainer"] table td { color: #ffffff !important; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+# --- Slut kontrast ---
+
 # --- Enkelt lösenordsskydd ---
 def kolla_losenord():
     def losenord_angivet():
@@ -247,11 +282,8 @@ with st.form("sok_form"):
         st.caption(
             "💡 ISBN är att föredra när det finns tillgängligt – det ger säkrast "
             "träff. För bästa resultat vid titelsökning: sök på fullständig "
-            "titel, gärna med författare om titeln är vanlig. Klicka på någon "
-            "av de länkade biblioteken för att se lånestatus."
+            "titel, gärna med författare om titeln är vanlig."
         )
-    else:
-        st.caption("💡 Klicka på någon av de länkade biblioteken för att se lånestatus.")
     sok_knapp = st.form_submit_button("Sök", type="primary")
 
 if sok_knapp and sokterm.strip():
@@ -304,8 +336,8 @@ if sok_knapp and sokterm.strip():
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart och aktuell lånestatus visas inte. Dubbelkolla vid "
-        "osäkerhet genom att klicka på biblioteket."
+        "är inte sökbart och aktuell lånestatus visas inte. Klicka på någon "
+        "av de länkade biblioteken för att se lånestatus."
     )
 
 elif sok_knapp:
