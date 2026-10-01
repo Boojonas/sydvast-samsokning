@@ -184,8 +184,13 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
             exemplar_lista = instans.get("@reverse", {}).get("itemOf", [])
             for exemplar in exemplar_lista:
                 held_by = exemplar.get("heldBy", {})
+                eget_bibliotek_id = held_by.get("@id", "").split("/")[-1]
+                if eget_bibliotek_id.startswith("7"):
+                    # Skolbibliotek (vedertagen sigel-konvention) - räknas inte,
+                    # eftersom fjärrlån inte kan göras därifrån
+                    continue
                 sigel_kandidater = {
-                    held_by.get("@id", "").split("/")[-1],
+                    eget_bibliotek_id,
                     held_by.get("isPartOf", {}).get("@id", "").split("/")[-1],
                 }
                 for kod, info in SIGLAR.items():
