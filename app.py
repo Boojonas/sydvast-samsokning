@@ -102,10 +102,13 @@ HEADERS = {
 def bygg_arena_titelfraga(sokterm: str) -> str:
     """Bygger en Arena-specifik titelfältssökning (title_index/titleMain_index)
     för djuplänkar till bibliotekens egna kataloger, så att länken inte visar
-    samma brus som en obegränsad fritextsökning skulle ge."""
+    samma brus som en obegränsad fritextsökning skulle ge. mediaClass_index:book
+    begränsar till tryckta böcker, så e-boksposter (separata katalogposter i
+    Arena, till skillnad från Libris) inte dyker upp som en extra, förvirrande
+    träff bredvid den tryckta."""
     ord_lista = re.sub(r'["()]', "", sokterm).split()
     grupper = [f"(title_index:{ord} OR titleMain_index:{ord})" for ord in ord_lista]
-    return " AND ".join(grupper)
+    return "mediaClass_index:book AND " + " AND ".join(grupper)
 
 
 def bygg_arena_forfattarfraga(forfattare: str) -> str:
