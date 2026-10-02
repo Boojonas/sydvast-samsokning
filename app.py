@@ -234,10 +234,19 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                     label = summary_lista[0].get("label")
                     sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
 
+                omslag_bytes = None
+                if omslag_url:
+                    try:
+                        bild_resp = requests.get(omslag_url, headers=HEADERS, timeout=10)
+                        bild_resp.raise_for_status()
+                        omslag_bytes = bild_resp.content
+                    except requests.exceptions.RequestException:
+                        pass  # ingen bild - inget att oroa sig för, visas bara utan omslag
+
                 bokinfo = {
                     "titel": titel,
                     "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
-                    "omslag_url": omslag_url,
+                    "omslag_bytes": omslag_bytes,
                     "sammanfattning": sammanfattning,
                 }
 
@@ -347,8 +356,8 @@ if sok_knapp and sokterm.strip():
     if bokinfo:
         kol_bild, kol_text = st.columns([1, 3])
         with kol_bild:
-            if bokinfo["omslag_url"]:
-                st.image(bokinfo["omslag_url"], width=120)
+            if bokinfo["omslag_bytes"]:
+                st.image(bokinfo["omslag_bytes"], width=120)
         with kol_text:
             st.markdown(f"### {bokinfo['titel']}")
             if bokinfo["forfattare"]:
@@ -399,8 +408,8 @@ if sok_knapp and sokterm.strip():
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart. Klicka på någon av de länkade biblioteken"
-        "för att se lånestatus."
+        "är inte sökbart och aktuell lånestatus visas inte. Klicka på någon "
+        "av de länkade biblioteken för att se lånestatus."
     )
 
 elif sok_knapp:
