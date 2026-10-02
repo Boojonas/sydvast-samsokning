@@ -135,6 +135,37 @@ def bygg_sokfraga(sokterm: str, soktyp: str, forfattare: str = "") -> str:
     return fraga
 
 
+def extrahera_bokinfo(verk: dict, instans: dict, sokterm: str) -> dict:
+    """Plockar ut titel, författare och sammanfattning från ett verk/instans-par.
+    OBS: Libris bilder (dataset/images/...) går inte att hämta eller länka till
+    direkt utifrån - både vårt eget anrop och en vanlig webbläsare får avslag
+    (403 Forbidden) vid försök. Ingen bildvisning byggs därför in."""
+    titel_info = verk.get("hasTitle", [{}])
+    titel = titel_info[0].get("mainTitle", sokterm) if titel_info else sokterm
+
+    forfattare_lista = []
+    for contrib in verk.get("contribution", []):
+        agent = contrib.get("agent", {})
+        if agent.get("givenName") or agent.get("familyName"):
+            forfattare_lista.append(
+                f"{agent.get('givenName', '')} {agent.get('familyName', '')}".strip()
+            )
+        elif agent.get("name"):
+            forfattare_lista.append(agent["name"])
+
+    sammanfattning = None
+    summary_lista = instans.get("summary", [])
+    if summary_lista:
+        label = summary_lista[0].get("label")
+        sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
+
+    return {
+        "titel": titel,
+        "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
+        "sammanfattning": sammanfattning,
+    }
+
+
 @st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
 def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: int = 3):
     """Gör ETT anrop mot Libris (istället för ett per bibliotek) och navigerar
@@ -168,6 +199,7 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
 
     traffar_per_kod = {kod: 0 for kod in SIGLAR}
     bokinfo = None
+    bokinfo_reserv = None  # bokinfo oavsett bibliotek-träff, som fallback
 
     if data is None:
         # Anropet misslyckades helt - markera alla bibliotek med samma fel,
@@ -200,38 +232,21 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                         if sigel in sigel_kandidater:
                             traffar_per_kod[kod] += 1
 
+            # Fånga alltid en reservversion av bokinfo från första fysiska
+            # instans vi ser, oavsett om den gav bibliotek-träff - så vi kan
+            # visa titel/författare även om inget av våra nio bibliotek har
+            # boken (men den ändå finns i Libris).
+            if bokinfo_reserv is None:
+                bokinfo_reserv = extrahera_bokinfo(verk, instans, sokterm)
+
             # Om just DET HÄR verket gav minst en träff och vi inte redan
-            # har plockat ut bokinfo, använd dess omslag/sammanfattning -
-            # undviker att visa fel bok vid tvetydiga titlar med flera verk
+            # har plockat ut bokinfo, använd dess info - undviker att visa
+            # fel bok vid tvetydiga titlar med flera verk
             if bokinfo is None and sum(traffar_per_kod.values()) > verk_traff_innan:
-                titel_info = verk.get("hasTitle", [{}])
-                titel = titel_info[0].get("mainTitle", sokterm) if titel_info else sokterm
+                bokinfo = extrahera_bokinfo(verk, instans, sokterm)
 
-                forfattare_lista = []
-                for contrib in verk.get("contribution", []):
-                    agent = contrib.get("agent", {})
-                    if agent.get("givenName") or agent.get("familyName"):
-                        forfattare_lista.append(
-                            f"{agent.get('givenName', '')} {agent.get('familyName', '')}".strip()
-                        )
-                    elif agent.get("name"):
-                        forfattare_lista.append(agent["name"])
-
-                # OBS: Libris bilder (dataset/images/...) går inte att hämta
-                # eller länka till direkt utifrån - både vårt eget anrop och
-                # en vanlig webbläsare får avslag (403 Forbidden) vid försök.
-                # Ingen bildvisning byggs därför in.
-                sammanfattning = None
-                summary_lista = instans.get("summary", [])
-                if summary_lista:
-                    label = summary_lista[0].get("label")
-                    sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
-
-                bokinfo = {
-                    "titel": titel,
-                    "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
-                    "sammanfattning": sammanfattning,
-                }
+    if bokinfo is None:
+        bokinfo = bokinfo_reserv
 
     return traffar_per_kod, {}, bokinfo
 
@@ -344,12 +359,15 @@ if sok_knapp and sokterm.strip():
             sammanfattning = bokinfo["sammanfattning"]
             FORHANDSVISNING_LANGD = 220
             if len(sammanfattning) > FORHANDSVISNING_LANGD:
-                avkapad = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0]
-                st.caption(avkapad + " …")
-                with st.expander("Läs mer"):
-                    st.caption(sammanfattning)
-            else:
-                st.caption(sammanfattning)
+                sammanfattning = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0] + " …"
+            st.caption(sammanfattning)
+    elif soktyp == "ISBN":
+        st.warning(f"ISBN \"{sokterm}\" hittades inte i LIBRIS alls - kontrollera siffrorna.")
+    else:
+        st.warning(
+            f"\"{sokterm}\" hittades inte i LIBRIS alls - kontrollera stavningen, "
+            "eller pröva med ISBN om du har det."
+        )
 
     resultat = []
     for kod, info in SIGLAR.items():
@@ -373,8 +391,6 @@ if sok_knapp and sokterm.strip():
             antal_visning = 0
         resultat.append({"Bibliotek": kommun_lankad, "Status": status, "Antal poster": antal_visning})
 
-    st.subheader(f"Resultat för \"{sokterm}\"")
-
     # Bygger en markdown-tabell manuellt så att biblioteksnamnen blir klickbara länkar
     tabell_rader = ["| Bibliotek | Status | Antal poster |", "|---|---|---|"]
     for r in resultat:
@@ -387,10 +403,12 @@ if sok_knapp and sokterm.strip():
                 st.write(f"**{SIGLAR[kod]['namn']}**: {felmeddelande}")
 
     antal_traffar = sum(1 for r in resultat if r["Status"] == "✅ Finns")
-    if antal_traffar == 0:
-        st.warning("Boken hittades inte hos något av de nio biblioteken.")
-    else:
+    if antal_traffar > 0:
         st.success(f"Boken finns hos {antal_traffar} av 9 bibliotek.")
+    elif bokinfo:
+        # bokinfo finns (titeln är känd i LIBRIS) men inget av våra nio har den -
+        # meddelandet ovanför täcker redan fallet att titeln inte hittades alls
+        st.warning("Boken hittades inte hos något av de nio biblioteken.")
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
