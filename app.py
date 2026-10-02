@@ -232,6 +232,7 @@ def extrahera_bokinfo(verk: dict, instans: dict, sokterm: str) -> dict:
         "forfattare": forfattare_fran_verk(verk),
         "sammanfattning": sammanfattning,
         "omslag_url": omslag_url,
+        "diagnostik_isbn_lista": isbn_lista,  # TILLFÄLLIGT - tas bort efter felsökning
     }
 
 
@@ -445,6 +446,8 @@ if "sok_sokterm" in st.session_state:
             st.caption(sammanfattning)
 
     if bokinfo:
+        if not bokinfo.get("omslag_url"):
+            st.caption(f"🔧 Diagnostik: ISBN som provades: {bokinfo.get('diagnostik_isbn_lista')}")
         if bokinfo.get("omslag_url"):
             kol_bild, kol_text = st.columns([1, 4])
             with kol_bild:
