@@ -217,16 +217,22 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                     elif agent.get("name"):
                         forfattare_lista.append(agent["name"])
 
-                omslag_url = None
+                # Bygg en prioriterad lista av bildadresser att prova - olika
+                # upplösningar finns inte alltid genererade för alla titlar,
+                # så vi faller tillbaka till originalbilden om miniatyrerna 404:ar.
+                bild_kandidater = []
                 bilder = instans.get("image", [])
                 if bilder:
                     thumbs = bilder[0].get("thumbnail", [])
-                    for t in thumbs:
-                        if t.get("width") == "256px":
-                            omslag_url = t.get("sameAs", [{}])[0].get("@id")
-                            break
-                    if not omslag_url and thumbs:
-                        omslag_url = thumbs[0].get("sameAs", [{}])[0].get("@id")
+                    thumbs_sorterade = sorted(
+                        thumbs, key=lambda t: 0 if t.get("width") == "256px" else 1
+                    )
+                    for t in thumbs_sorterade:
+                        url = t.get("sameAs", [{}])[0].get("@id")
+                        if url:
+                            bild_kandidater.append(url)
+                    if bilder[0].get("@id"):
+                        bild_kandidater.append(bilder[0]["@id"])  # originalbild som sista utväg
 
                 sammanfattning = None
                 summary_lista = instans.get("summary", [])
@@ -235,16 +241,19 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                     sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
 
                 omslag_bytes = None
+                omslag_url = None
                 omslag_fel = None
-                if omslag_url:
+                for kandidat_url in bild_kandidater:
                     try:
-                        bild_resp = requests.get(omslag_url, headers=HEADERS, timeout=10)
+                        bild_resp = requests.get(kandidat_url, headers=HEADERS, timeout=10)
                         bild_resp.raise_for_status()
                         omslag_bytes = bild_resp.content
+                        omslag_url = kandidat_url
+                        break
                     except requests.exceptions.RequestException as e:
                         omslag_fel = str(e)
-                else:
-                    omslag_fel = "ingen omslag_url hittades i svaret"
+                if not bild_kandidater:
+                    omslag_fel = "ingen bild hittades i svaret"
 
                 bokinfo = {
                     "titel": titel,
