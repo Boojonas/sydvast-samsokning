@@ -344,8 +344,8 @@ if sok_knapp and sokterm.strip():
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart och aktuell lånestatus visas inte. Klicka på någon "
-        "av de länkade biblioteken för att se lånestatus."
+        "är inte sökbart. Klicka på någon av det länkade biblioteken för"
+        "att se aktuell lånestatus."
     )
 
 elif sok_knapp:
