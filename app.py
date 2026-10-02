@@ -235,18 +235,23 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                     sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
 
                 omslag_bytes = None
+                omslag_fel = None
                 if omslag_url:
                     try:
                         bild_resp = requests.get(omslag_url, headers=HEADERS, timeout=10)
                         bild_resp.raise_for_status()
                         omslag_bytes = bild_resp.content
-                    except requests.exceptions.RequestException:
-                        pass  # ingen bild - inget att oroa sig för, visas bara utan omslag
+                    except requests.exceptions.RequestException as e:
+                        omslag_fel = str(e)
+                else:
+                    omslag_fel = "ingen omslag_url hittades i svaret"
 
                 bokinfo = {
                     "titel": titel,
                     "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
                     "omslag_bytes": omslag_bytes,
+                    "omslag_url": omslag_url,
+                    "omslag_fel": omslag_fel,
                     "sammanfattning": sammanfattning,
                 }
 
@@ -358,6 +363,9 @@ if sok_knapp and sokterm.strip():
         with kol_bild:
             if bokinfo["omslag_bytes"]:
                 st.image(bokinfo["omslag_bytes"], width=120)
+            else:
+                st.caption(f"🔧 Diagnostik: {bokinfo.get('omslag_fel')}")
+                st.caption(f"URL: {bokinfo.get('omslag_url')}")
         with kol_text:
             st.markdown(f"### {bokinfo['titel']}")
             if bokinfo["forfattare"]:
