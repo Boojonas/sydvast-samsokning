@@ -133,16 +133,24 @@ def bygg_sokfraga(sokterm: str, soktyp: str, forfattare: str = "") -> str:
 
 
 def forfattare_fran_verk(verk: dict):
-    """Plockar ut en kommaseparerad författarlista från ett verk."""
+    """Plockar ut en kommaseparerad författarlista från ett verk. Tålig mot
+    varierande datastrukturer i Libris-svaret - t.ex. att 'agent' ibland är
+    en lista med flera upphov istället för en enda post."""
     forfattare_lista = []
     for contrib in verk.get("contribution", []):
+        if not isinstance(contrib, dict):
+            continue
         agent = contrib.get("agent", {})
-        if agent.get("givenName") or agent.get("familyName"):
-            forfattare_lista.append(
-                f"{agent.get('givenName', '')} {agent.get('familyName', '')}".strip()
-            )
-        elif agent.get("name"):
-            forfattare_lista.append(agent["name"])
+        agenter = agent if isinstance(agent, list) else [agent]
+        for a in agenter:
+            if not isinstance(a, dict):
+                continue
+            if a.get("givenName") or a.get("familyName"):
+                forfattare_lista.append(
+                    f"{a.get('givenName', '')} {a.get('familyName', '')}".strip()
+                )
+            elif a.get("name"):
+                forfattare_lista.append(a["name"])
     return ", ".join(forfattare_lista) if forfattare_lista else None
 
 
