@@ -217,50 +217,19 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                     elif agent.get("name"):
                         forfattare_lista.append(agent["name"])
 
-                # Bygg en prioriterad lista av bildadresser att prova - olika
-                # upplösningar finns inte alltid genererade för alla titlar,
-                # så vi faller tillbaka till originalbilden om miniatyrerna 404:ar.
-                bild_kandidater = []
-                bilder = instans.get("image", [])
-                if bilder:
-                    thumbs = bilder[0].get("thumbnail", [])
-                    thumbs_sorterade = sorted(
-                        thumbs, key=lambda t: 0 if t.get("width") == "256px" else 1
-                    )
-                    for t in thumbs_sorterade:
-                        url = t.get("sameAs", [{}])[0].get("@id")
-                        if url:
-                            bild_kandidater.append(url)
-                    if bilder[0].get("@id"):
-                        bild_kandidater.append(bilder[0]["@id"])  # originalbild som sista utväg
-
+                # OBS: Libris bilder (dataset/images/...) går inte att hämta
+                # eller länka till direkt utifrån - både vårt eget anrop och
+                # en vanlig webbläsare får avslag (403 Forbidden) vid försök.
+                # Ingen bildvisning byggs därför in.
                 sammanfattning = None
                 summary_lista = instans.get("summary", [])
                 if summary_lista:
                     label = summary_lista[0].get("label")
                     sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
 
-                omslag_bytes = None
-                omslag_url = None
-                omslag_fel = None
-                for kandidat_url in bild_kandidater:
-                    try:
-                        bild_resp = requests.get(kandidat_url, headers=HEADERS, timeout=10)
-                        bild_resp.raise_for_status()
-                        omslag_bytes = bild_resp.content
-                        omslag_url = kandidat_url
-                        break
-                    except requests.exceptions.RequestException as e:
-                        omslag_fel = str(e)
-                if not bild_kandidater:
-                    omslag_fel = "ingen bild hittades i svaret"
-
                 bokinfo = {
                     "titel": titel,
                     "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
-                    "omslag_bytes": omslag_bytes,
-                    "omslag_url": omslag_url,
-                    "omslag_fel": omslag_fel,
                     "sammanfattning": sammanfattning,
                 }
 
@@ -368,19 +337,19 @@ if sok_knapp and sokterm.strip():
         traffar_per_kod, fel_per_kod, bokinfo = sok_alla_bibliotek(sokterm, soktyp, forfattare)
 
     if bokinfo:
-        kol_bild, kol_text = st.columns([1, 3])
-        with kol_bild:
-            if bokinfo["omslag_bytes"]:
-                st.image(bokinfo["omslag_bytes"], width=120)
+        st.markdown(f"### {bokinfo['titel']}")
+        if bokinfo["forfattare"]:
+            st.markdown(f"**{bokinfo['forfattare']}**")
+        if bokinfo["sammanfattning"]:
+            sammanfattning = bokinfo["sammanfattning"]
+            FORHANDSVISNING_LANGD = 220
+            if len(sammanfattning) > FORHANDSVISNING_LANGD:
+                avkapad = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0]
+                st.caption(avkapad + " …")
+                with st.expander("Läs mer"):
+                    st.caption(sammanfattning)
             else:
-                st.caption(f"🔧 Diagnostik: {bokinfo.get('omslag_fel')}")
-                st.caption(f"URL: {bokinfo.get('omslag_url')}")
-        with kol_text:
-            st.markdown(f"### {bokinfo['titel']}")
-            if bokinfo["forfattare"]:
-                st.markdown(f"**{bokinfo['forfattare']}**")
-            if bokinfo["sammanfattning"]:
-                st.caption(bokinfo["sammanfattning"])
+                st.caption(sammanfattning)
 
     resultat = []
     for kod, info in SIGLAR.items():
