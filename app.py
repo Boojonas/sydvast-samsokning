@@ -362,11 +362,11 @@ if sok_knapp and sokterm.strip():
                 sammanfattning = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0] + " …"
             st.caption(sammanfattning)
     elif soktyp == "ISBN":
-        st.warning(f"ISBN \"{sokterm}\" hittades inte i LIBRIS alls - kontrollera siffrorna.")
+        st.warning(f"ISBN \"{sokterm}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
     else:
         st.warning(
-            f"\"{sokterm}\" hittades inte i LIBRIS alls - kontrollera stavningen, "
-            "eller pröva med ISBN om du har det."
+            f"\"{sokterm}\" hittades inte i LIBRIS. Kontrollera stavning, "
+            "eller pröva med ISBN."
         )
 
     resultat = []
