@@ -176,9 +176,14 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
     verket är tryckt OCH NÅGON instans finns hos biblioteket - inte
     nödvändigtvis samma instans).
 
-    Returnerar (träffar_per_kod, fel_per_kod) - träffar_per_kod räknar antal
-    matchande exemplarposter (kan vara >1 om titeln inte är unik och flera
-    orelaterade verk träffas - använd författarfältet för att undvika det)."""
+    Använder bara det MEST RELEVANTA verket (det första i träfflistan) -
+    aldrig en summering över flera verk, för att undvika att olika böckers
+    bestånd blandas ihop vid en otydlig titel.
+
+    Returnerar (träffar_per_kod, fel_per_kod, bokinfo, flera_verk_traffade).
+    flera_verk_traffade är True om sökningen gav fler än ett matchande verk -
+    en signal till användaren om att titeln inte var unik och att resultatet
+    kan behöva dubbelkollas genom att förfina sökningen (t.ex. med författare)."""
     fraga = bygg_sokfraga(sokterm, soktyp, forfattare)
 
     senaste_fel = None
@@ -199,22 +204,29 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
 
     traffar_per_kod = {kod: 0 for kod in SIGLAR}
     bokinfo = None
-    bokinfo_reserv = None  # bokinfo oavsett bibliotek-träff, som fallback
 
     if data is None:
         # Anropet misslyckades helt - markera alla bibliotek med samma fel,
         # så användaren ser det tydligt istället för att allt bara visar "Finns ej"
         fel_per_kod = {kod: senaste_fel for kod in SIGLAR}
-        return traffar_per_kod, fel_per_kod, bokinfo
+        return traffar_per_kod, fel_per_kod, bokinfo, False
 
     verk_lista = data.get("items", [])
+    flera_verk_traffade = len(verk_lista) > 1
 
-    for verk in verk_lista:
-        verk_traff_innan = sum(traffar_per_kod.values())
+    if verk_lista:
+        # Använder ENDAST det första (mest relevanta) verket - aldrig en
+        # summering över flera verk, för att undvika att olika böckers
+        # bestånd blandas ihop vid en otydlig titel. Om fel bok visas är
+        # signalen till användaren att förfina sökningen (se flera_verk_traffade).
+        verk = verk_lista[0]
         instanser = verk.get("@reverse", {}).get("instanceOf", [])
         for instans in instanser:
             if instans.get("@type") != "PhysicalResource":
                 continue  # hoppa över e-böcker/ljudböcker etc.
+            if bokinfo is None:
+                bokinfo = extrahera_bokinfo(verk, instans, sokterm)
+
             exemplar_lista = instans.get("@reverse", {}).get("itemOf", [])
             for exemplar in exemplar_lista:
                 held_by = exemplar.get("heldBy", {})
@@ -232,23 +244,7 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                         if sigel in sigel_kandidater:
                             traffar_per_kod[kod] += 1
 
-            # Fånga alltid en reservversion av bokinfo från första fysiska
-            # instans vi ser, oavsett om den gav bibliotek-träff - så vi kan
-            # visa titel/författare även om inget av våra nio bibliotek har
-            # boken (men den ändå finns i Libris).
-            if bokinfo_reserv is None:
-                bokinfo_reserv = extrahera_bokinfo(verk, instans, sokterm)
-
-            # Om just DET HÄR verket gav minst en träff och vi inte redan
-            # har plockat ut bokinfo, använd dess info - undviker att visa
-            # fel bok vid tvetydiga titlar med flera verk
-            if bokinfo is None and sum(traffar_per_kod.values()) > verk_traff_innan:
-                bokinfo = extrahera_bokinfo(verk, instans, sokterm)
-
-    if bokinfo is None:
-        bokinfo = bokinfo_reserv
-
-    return traffar_per_kod, {}, bokinfo
+    return traffar_per_kod, {}, bokinfo, flera_verk_traffade
 
 
 # ---------------------------------------------------------------------------
@@ -349,12 +345,19 @@ if sok_knapp and sokterm.strip():
     forfattare = forfattare.strip()
 
     with st.spinner("Söker..."):
-        traffar_per_kod, fel_per_kod, bokinfo = sok_alla_bibliotek(sokterm, soktyp, forfattare)
+        traffar_per_kod, fel_per_kod, bokinfo, flera_verk_traffade = sok_alla_bibliotek(
+            sokterm, soktyp, forfattare
+        )
 
     if bokinfo:
         st.markdown(f"### {bokinfo['titel']}")
         if bokinfo["forfattare"]:
             st.markdown(f"**{bokinfo['forfattare']}**")
+        if flera_verk_traffade:
+            st.caption(
+                "⚠️ Flera böcker med liknande titel hittades. Förfina din sökning "
+                "om felaktig titel visas."
+            )
         if bokinfo["sammanfattning"]:
             sammanfattning = bokinfo["sammanfattning"]
             FORHANDSVISNING_LANGD = 220
