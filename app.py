@@ -167,16 +167,18 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
             break
 
     traffar_per_kod = {kod: 0 for kod in SIGLAR}
+    bokinfo = None
 
     if data is None:
         # Anropet misslyckades helt - markera alla bibliotek med samma fel,
         # så användaren ser det tydligt istället för att allt bara visar "Finns ej"
         fel_per_kod = {kod: senaste_fel for kod in SIGLAR}
-        return traffar_per_kod, fel_per_kod
+        return traffar_per_kod, fel_per_kod, bokinfo
 
     verk_lista = data.get("items", [])
 
     for verk in verk_lista:
+        verk_traff_innan = sum(traffar_per_kod.values())
         instanser = verk.get("@reverse", {}).get("instanceOf", [])
         for instans in instanser:
             if instans.get("@type") != "PhysicalResource":
@@ -198,7 +200,48 @@ def sok_alla_bibliotek(sokterm: str, soktyp: str, forfattare: str = "", forsok: 
                         if sigel in sigel_kandidater:
                             traffar_per_kod[kod] += 1
 
-    return traffar_per_kod, {}
+            # Om just DET HÄR verket gav minst en träff och vi inte redan
+            # har plockat ut bokinfo, använd dess omslag/sammanfattning -
+            # undviker att visa fel bok vid tvetydiga titlar med flera verk
+            if bokinfo is None and sum(traffar_per_kod.values()) > verk_traff_innan:
+                titel_info = verk.get("hasTitle", [{}])
+                titel = titel_info[0].get("mainTitle", sokterm) if titel_info else sokterm
+
+                forfattare_lista = []
+                for contrib in verk.get("contribution", []):
+                    agent = contrib.get("agent", {})
+                    if agent.get("givenName") or agent.get("familyName"):
+                        forfattare_lista.append(
+                            f"{agent.get('givenName', '')} {agent.get('familyName', '')}".strip()
+                        )
+                    elif agent.get("name"):
+                        forfattare_lista.append(agent["name"])
+
+                omslag_url = None
+                bilder = instans.get("image", [])
+                if bilder:
+                    thumbs = bilder[0].get("thumbnail", [])
+                    for t in thumbs:
+                        if t.get("width") == "256px":
+                            omslag_url = t.get("sameAs", [{}])[0].get("@id")
+                            break
+                    if not omslag_url and thumbs:
+                        omslag_url = thumbs[0].get("sameAs", [{}])[0].get("@id")
+
+                sammanfattning = None
+                summary_lista = instans.get("summary", [])
+                if summary_lista:
+                    label = summary_lista[0].get("label")
+                    sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
+
+                bokinfo = {
+                    "titel": titel,
+                    "forfattare": ", ".join(forfattare_lista) if forfattare_lista else None,
+                    "omslag_url": omslag_url,
+                    "sammanfattning": sammanfattning,
+                }
+
+    return traffar_per_kod, {}, bokinfo
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +342,19 @@ if sok_knapp and sokterm.strip():
     forfattare = forfattare.strip()
 
     with st.spinner("Söker..."):
-        traffar_per_kod, fel_per_kod = sok_alla_bibliotek(sokterm, soktyp, forfattare)
+        traffar_per_kod, fel_per_kod, bokinfo = sok_alla_bibliotek(sokterm, soktyp, forfattare)
+
+    if bokinfo:
+        kol_bild, kol_text = st.columns([1, 3])
+        with kol_bild:
+            if bokinfo["omslag_url"]:
+                st.image(bokinfo["omslag_url"], width=120)
+        with kol_text:
+            st.markdown(f"### {bokinfo['titel']}")
+            if bokinfo["forfattare"]:
+                st.markdown(f"**{bokinfo['forfattare']}**")
+            if bokinfo["sammanfattning"]:
+                st.caption(bokinfo["sammanfattning"])
 
     resultat = []
     for kod, info in SIGLAR.items():
@@ -344,8 +399,8 @@ if sok_knapp and sokterm.strip():
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart. Klicka på någon av det länkade biblioteken för"
-        "att se aktuell lånestatus."
+        "är inte sökbart. Klicka på någon av de länkade biblioteken"
+        "för att se lånestatus."
     )
 
 elif sok_knapp:
