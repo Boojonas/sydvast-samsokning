@@ -175,6 +175,33 @@ def verk_etikett(verk: dict, sokterm: str) -> str:
     return etikett
 
 
+def hamta_omslag_url(isbn: str):
+    """Slår upp omslagsbild via Google Books API utifrån ISBN. Google Books
+    är byggt för att tredjepartsappar ska kunna visa bilderna (till skillnad
+    från Libris egna bilder, som gav 403 Forbidden vid direktlänkning), så
+    vi länkar direkt till adressen istället för att hämta bilddata själva.
+    Returnerar None tyst vid fel eller om omslag saknas - ingen bild är
+    inte ett problem värt att larma om."""
+    try:
+        resp = requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params={"q": f"isbn:{isbn}"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        poster = data.get("items", [])
+        if not poster:
+            return None
+        bild_lankar = poster[0].get("volumeInfo", {}).get("imageLinks", {})
+        url = bild_lankar.get("thumbnail") or bild_lankar.get("smallThumbnail")
+        if url:
+            url = url.replace("http://", "https://")  # undvik blandat innehåll i webbläsaren
+        return url
+    except requests.exceptions.RequestException:
+        return None
+
+
 def extrahera_bokinfo(verk: dict, instans: dict, sokterm: str) -> dict:
     """Plockar ut titel, författare och sammanfattning från ett verk/instans-par.
     OBS: Libris bilder (dataset/images/...) går inte att hämta eller länka till
@@ -189,10 +216,14 @@ def extrahera_bokinfo(verk: dict, instans: dict, sokterm: str) -> dict:
         label = summary_lista[0].get("label")
         sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
 
+    isbn_lista = [i.get("value") for i in instans.get("identifiedBy", []) if i.get("value")]
+    omslag_url = hamta_omslag_url(isbn_lista[0]) if isbn_lista else None
+
     return {
         "titel": titel,
         "forfattare": forfattare_fran_verk(verk),
         "sammanfattning": sammanfattning,
+        "omslag_url": omslag_url,
     }
 
 
@@ -234,6 +265,8 @@ def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: in
     data = None
     for försök_nr in range(1, forsok + 1):
         try:
+            # Libris standardgräns på 20 träffar per sökning - gott om
+            # marginal för en enstaka titel, som normalt ger ett fåtal verk.
             resp = requests.get(FIND_URL, params={"_q": fraga}, headers=HEADERS, timeout=20)
             resp.raise_for_status()
             data = resp.json()
@@ -392,7 +425,7 @@ if "sok_sokterm" in st.session_state:
             bokinfo = extrahera_bokinfo(valt_verk, instans, sokterm_vy)
         traffar_per_kod = berakna_bestand(valt_verk)
 
-    if bokinfo:
+    def visa_bokinfo_text():
         st.markdown(f"### {bokinfo['titel']}")
         if bokinfo["forfattare"]:
             st.markdown(f"**{bokinfo['forfattare']}**")
@@ -402,6 +435,16 @@ if "sok_sokterm" in st.session_state:
             if len(sammanfattning) > FORHANDSVISNING_LANGD:
                 sammanfattning = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0] + " …"
             st.caption(sammanfattning)
+
+    if bokinfo:
+        if bokinfo.get("omslag_url"):
+            kol_bild, kol_text = st.columns([1, 4])
+            with kol_bild:
+                st.image(bokinfo["omslag_url"], width=90)
+            with kol_text:
+                visa_bokinfo_text()
+        else:
+            visa_bokinfo_text()
     elif not fel_per_kod and soktyp_vy == "ISBN":
         st.warning(f"ISBN \"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
     elif not fel_per_kod:
