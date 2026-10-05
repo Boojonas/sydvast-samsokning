@@ -386,7 +386,7 @@ if "sok_sokterm" in st.session_state:
     elif len(verk_lista) > 1:
         etiketter = [verk_etikett(v, sokterm_vy) for v in verk_lista]
         st.radio(
-            "Flera böcker hittades – välj rätt:",
+            "Flera poster matchar. Välj ett alternativ i listan nedan.",
             options=range(len(verk_lista)),
             format_func=lambda i: etiketter[i],
             key="sok_valt_index",
