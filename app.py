@@ -406,12 +406,6 @@ if "sok_sokterm" in st.session_state:
         st.markdown(f"### {bokinfo['titel']}")
         if bokinfo["forfattare"]:
             st.markdown(f"**{bokinfo['forfattare']}**")
-        if bokinfo["sammanfattning"]:
-            sammanfattning = bokinfo["sammanfattning"]
-            FORHANDSVISNING_LANGD = 220
-            if len(sammanfattning) > FORHANDSVISNING_LANGD:
-                sammanfattning = sammanfattning[:FORHANDSVISNING_LANGD].rsplit(" ", 1)[0] + " …"
-            st.caption(sammanfattning)
     elif not fel_per_kod and soktyp_vy == "ISBN":
         st.warning(f"ISBN \"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
     elif not fel_per_kod:
@@ -459,8 +453,8 @@ if "sok_sokterm" in st.session_state:
 
     st.caption(
         "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är inte sökbart och aktuell lånestatus visas inte. Klicka på någon "
-        "av de länkade biblioteken för att se lånestatus."
+        "är därmed inte sökbart. Klicka på någon av de länkade biblioteken "
+        "för att se lånestatus."
     )
 
 elif sok_knapp:
