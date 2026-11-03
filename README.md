@@ -1,6 +1,6 @@
 # Samsökning – Nätverket Sydväst
 
-En liten webbapp som visar vilka av de nio folkbiblioteken i Nätverket Sydväst som har en viss tryckt titel. Tänkt som stöd vid fjärrlån inom nätverket.
+En liten webbapp som visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet som har en viss tryckt titel. Tänkt som stöd vid fjärrlån mellan biblioteken.
 
 Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.app/ (lösenordsskyddad).
 

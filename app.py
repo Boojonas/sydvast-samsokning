@@ -335,8 +335,8 @@ if not kolla_losenord():
 
 st.title("📚 Samsökning – Nätverket Sydväst")
 st.caption(
-    "Sök i bokbeståndet hos de nio biblioteken i Nätverket Sydväst, "
-    "via LIBRIS öppna API. Visar endast tryckta böcker."
+    "Gemensam sökfunktion för biblioteken i fjärrlånesamarbetet. Bygger på "
+    "bibliotekens rapporterade bestånd av tryckta titlar i LIBRIS."
 )
 
 with st.form("sok_form"):
@@ -457,9 +457,7 @@ if "sok_sokterm" in st.session_state:
         st.warning("Boken hittades inte hos något av de nio biblioteken.")
 
     st.caption(
-        "Bygger på bibliotekens rapporterade bestånd i LIBRIS. Äldre bestånd "
-        "är därmed inte sökbart. Klicka på någon av de länkade biblioteken "
-        "för att se lånestatus."
+        "Klicka på något av de länkade biblioteken för att se lånestatus."
     )
 
 elif sok_knapp:
