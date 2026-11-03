@@ -170,46 +170,115 @@ def forsta_fysiska_instansen(verk: dict):
     return None
 
 
-def verk_etikett(verk: dict, sokterm: str) -> str:
-    """Bygger en läsbar rad för valmenyn: 'Titel – Författare (år)'."""
-    titel_info = verk.get("hasTitle", [{}])
-    titel = titel_info[0].get("mainTitle", sokterm) if titel_info else sokterm
-    forfattare = forfattare_fran_verk(verk)
-
-    ar = None
-    instans = forsta_fysiska_instansen(verk)
-    if instans:
-        publikationer = instans.get("publication", [])
-        if publikationer:
-            ar = publikationer[0].get("year")
-
-    etikett = titel
-    if forfattare:
-        etikett += f" – {forfattare}"
-    if ar:
-        etikett += f" ({ar})"
-    return etikett
+def md(text: str) -> str:
+    """Skyddar tecken som annars tolkas som Markdown (t.ex. * och _ i titlar)."""
+    return re.sub(r"([\\*_\[\]#|`<>])", r"\\\1", text)
 
 
-def extrahera_bokinfo(verk: dict, instans: dict, sokterm: str) -> dict:
-    """Plockar ut titel, författare och sammanfattning från ett verk/instans-par.
+def _lista(varde) -> list:
+    """LIBRIS anger ibland ett enskilt objekt och ibland en lista - gör alltid lista."""
+    if varde is None:
+        return []
+    return varde if isinstance(varde, list) else [varde]
+
+
+def _text(varde):
+    """Plockar ut en läsbar sträng ur LIBRIS varierande format: ren sträng,
+    lista av strängar, språkmärkt värde ({'@value': ...}) eller objekt med
+    'label'/'name'. Returnerar None om inget hittas."""
+    if isinstance(varde, str):
+        return varde.strip() or None
+    if isinstance(varde, dict):
+        for nyckel in ("@value", "label", "name", "code"):
+            if nyckel in varde:
+                return _text(varde[nyckel])
+        return None
+    if isinstance(varde, list):
+        for v in varde:
+            t = _text(v)
+            if t:
+                return t
+    return None
+
+
+def titel_fran(verk: dict, instans, reserv: str):
+    """Huvudtitel och undertitel - i första hand från instansen (utgåvan),
+    annars från verket."""
+    for kalla in (instans or {}, verk):
+        for t in _lista(kalla.get("hasTitle")):
+            if isinstance(t, dict) and _text(t.get("mainTitle")):
+                return _text(t.get("mainTitle")), _text(t.get("subtitle"))
+    return reserv, None
+
+
+def katalogpost(verk: dict, instans, sokterm: str) -> dict:
+    """Bygger en bibliografisk beskrivning av utgåvan i ISBD-anda:
+    Titel : undertitel / upphov. – Upplaga. – Ort : Förlag, år. – ISBN.
+    Alla delar är valfria - saknas något i LIBRIS hoppas det över.
     OBS: Libris bilder (dataset/images/...) går inte att hämta eller länka till
-    direkt utifrån - både vårt eget anrop och en vanlig webbläsare får avslag
-    (403 Forbidden) vid försök. Ingen bildvisning byggs därför in."""
-    titel_info = verk.get("hasTitle", [{}])
-    titel = titel_info[0].get("mainTitle", sokterm) if titel_info else sokterm
+    direkt utifrån (403 Forbidden). Ingen bildvisning byggs därför in."""
+    instans = instans or {}
+    titel, undertitel = titel_fran(verk, instans, sokterm)
 
-    sammanfattning = None
-    summary_lista = instans.get("summary", [])
-    if summary_lista:
-        label = summary_lista[0].get("label")
-        sammanfattning = label if isinstance(label, str) else (label[0] if label else None)
+    upphov = _text(instans.get("responsibilityStatement")) or forfattare_fran_verk(verk)
+    upplaga = _text(instans.get("editionStatement"))
+
+    ort = forlag = ar = None
+    publikationer = _lista(instans.get("publication"))
+    if publikationer:
+        pub = publikationer[0]
+        ort = _text(pub.get("place"))
+        forlag = _text(pub.get("agent"))
+        ar = _text(pub.get("year")) or _text(pub.get("date"))
+
+    isbn_lista = []
+    for ident in _lista(instans.get("identifiedBy")):
+        if isinstance(ident, dict) and ident.get("@type") == "ISBN":
+            varde = _text(ident.get("value"))
+            if varde and varde not in isbn_lista:
+                isbn_lista.append(varde)
+
+    post_id = instans.get("@id", "")
+    post_url = post_id.split("#")[0] if post_id.startswith("http") else None
 
     return {
-        "titel": titel,
-        "forfattare": forfattare_fran_verk(verk),
-        "sammanfattning": sammanfattning,
+        "titel": titel, "undertitel": undertitel, "upphov": upphov,
+        "upplaga": upplaga, "ort": ort, "forlag": forlag, "ar": ar,
+        "isbn": isbn_lista, "post_url": post_url,
     }
+
+
+def utgivning_text(post: dict):
+    """'Ort : Förlag, år' - med de delar som finns."""
+    delar = ""
+    if post["ort"] and post["forlag"]:
+        delar = f"{post['ort']} : {post['forlag']}"
+    else:
+        delar = post["ort"] or post["forlag"] or ""
+    if post["ar"]:
+        delar = f"{delar}, {post['ar']}" if delar else post["ar"]
+    return delar or None
+
+
+def beskrivning_text(post: dict) -> str:
+    """Raden under titeln: 'Upphov. – Upplaga. – Ort : Förlag, år. – ISBN ...'"""
+    delar = [post["upphov"], post["upplaga"], utgivning_text(post)]
+    if post["isbn"]:
+        delar.append("ISBN " + " ; ".join(post["isbn"]))
+    delar = [d.rstrip(" .") for d in delar if d]
+    return ". – ".join(delar) + ("." if delar else "")
+
+
+def verk_etikett(verk: dict, sokterm: str) -> str:
+    """Rad i träfflistan: 'Titel / Upphov. – Ort : Förlag, år'."""
+    post = katalogpost(verk, forsta_fysiska_instansen(verk), sokterm)
+    etikett = post["titel"]
+    if post["upphov"]:
+        etikett += f" / {post['upphov']}"
+    utgivning = utgivning_text(post)
+    if utgivning:
+        etikett += f". – {utgivning}"
+    return etikett
 
 
 def berakna_bestand(verk: dict) -> dict:
@@ -398,19 +467,23 @@ if "sok_sokterm" in st.session_state:
         )
         valt_verk = verk_lista[st.session_state["sok_valt_index"]]
 
-    bokinfo = None
+    post = None
     traffar_per_kod = {kod: 0 for kod in SIGLAR}
 
     if valt_verk is not None:
         instans = forsta_fysiska_instansen(valt_verk)
         if instans:
-            bokinfo = extrahera_bokinfo(valt_verk, instans, sokterm_vy)
+            post = katalogpost(valt_verk, instans, sokterm_vy)
         traffar_per_kod = berakna_bestand(valt_verk)
 
-    if bokinfo:
-        st.markdown(f"### {bokinfo['titel']}")
-        if bokinfo["forfattare"]:
-            st.markdown(f"**{bokinfo['forfattare']}**")
+    if post:
+        rubrik = md(post["titel"])
+        if post["undertitel"]:
+            rubrik += f" : {md(post['undertitel'])}"
+        st.markdown(f"### {rubrik}")
+        st.markdown(md(beskrivning_text(post)))
+        if post["post_url"]:
+            st.markdown(f"[Visa posten i LIBRIS ↗]({post['post_url']})")
     elif not fel_per_kod and soktyp_vy == "ISBN":
         st.warning(f"ISBN \"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
     elif not fel_per_kod:
@@ -430,19 +503,19 @@ if "sok_sokterm" in st.session_state:
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
         kommun_lankad = f"[{info['namn']}]({sok_lank})"
         if kod in fel_per_kod:
-            status = "⚠️ Fel"
-            antal_visning = "-"
+            status, ordning = "⚠️ Fel", 1
         elif traffar_per_kod[kod] > 0:
-            status = "✅ Finns"
-            antal_visning = traffar_per_kod[kod]
+            status, ordning = "✅ I bestånd", 0
         else:
-            status = "❌ Finns ej"
-            antal_visning = 0
-        resultat.append({"Bibliotek": kommun_lankad, "Status": status, "Antal poster": antal_visning})
+            status, ordning = "–", 2
+        resultat.append({"Bibliotek": kommun_lankad, "Status": status, "ordning": ordning})
 
-    tabell_rader = ["| Bibliotek | Status | Antal poster |", "|---|---|---|"]
+    # Bibliotek med bestånd först, i övrigt i ursprunglig (alfabetisk) ordning
+    resultat.sort(key=lambda r: r["ordning"])
+
+    tabell_rader = ["| Bibliotek | Status |", "|---|---|"]
     for r in resultat:
-        tabell_rader.append(f"| {r['Bibliotek']} | {r['Status']} | {r['Antal poster']} |")
+        tabell_rader.append(f"| {r['Bibliotek']} | {r['Status']} |")
     st.markdown("\n".join(tabell_rader))
 
     if fel_per_kod:
@@ -450,11 +523,11 @@ if "sok_sokterm" in st.session_state:
             for kod, felmeddelande in fel_per_kod.items():
                 st.write(f"**{SIGLAR[kod]['namn']}**: {felmeddelande}")
 
-    antal_traffar = sum(1 for r in resultat if r["Status"] == "✅ Finns")
+    antal_traffar = sum(1 for r in resultat if r["ordning"] == 0)
     if antal_traffar > 0:
-        st.success(f"Boken finns hos {antal_traffar} av 9 bibliotek.")
-    elif bokinfo:
-        st.warning("Boken hittades inte hos något av de nio biblioteken.")
+        st.success(f"Finns hos {antal_traffar} av {len(SIGLAR)} bibliotek.")
+    elif post:
+        st.warning("Finns inte hos något av biblioteken.")
 
     st.caption(
         "Klicka på något av de länkade biblioteken för att se lånestatus."

@@ -10,7 +10,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och räknar hur många som hör till respektive biblioteks sigel. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
-5. Resultatet visas som en tabell. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
+5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken där de med bestånd står först. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
 
 ## Biblioteken och deras sigler
 
@@ -32,7 +32,8 @@ Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. 
 
 - Appen ser bara det bestånd biblioteken rapporterat till LIBRIS. Äldre bestånd som aldrig konverterats syns inte och måste sökas i respektive katalog.
 - Bara tryckta böcker, inte e-böcker, ljudböcker eller andra medier.
-- Antal "poster" är antal exemplarposter i LIBRIS, inte nödvändigtvis antal fysiska exemplar på hyllan, och säger inget om lånestatus.
+- Beståndet räknas för den första tryckta utgåvan av det valda verket. Har ett bibliotek bara en annan utgåva kan det visas utan bestånd. Folkbibliotekens egna kataloger slår ofta ihop utgåvor (t.ex. pocket och inbunden) i en post, vilket LIBRIS inte gör.
+- Resultatet säger inget om lånestatus. Den syns i bibliotekets egen katalog.
 - Varför appen inte skrapar Arena direkt: flera av bibliotekens Arena-installationer har bot-skydd, och LIBRIS ger en enhetlig källa för alla nio.
 
 ## Köra lokalt
