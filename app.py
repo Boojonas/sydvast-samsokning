@@ -99,6 +99,14 @@ HEADERS = {
 }
 
 
+def ar_isbn(sokterm: str) -> bool:
+    """Avgör om söktermen är ett ISBN: 10 tecken (sista får vara X) eller
+    13 siffror, efter att bindestreck och mellanslag tagits bort. Korta
+    sifferstitlar som "1984" räknas därmed som titelsökning."""
+    rensad = re.sub(r"[\s-]", "", sokterm)
+    return bool(re.fullmatch(r"\d{9}[\dXx]|\d{13}", rensad))
+
+
 def bygg_arena_titelfraga(sokterm: str) -> str:
     """Bygger en Arena-specifik titelfältssökning (title_index/titleMain_index)
     för djuplänkar till bibliotekens egna kataloger. mediaClass_index:book
@@ -331,32 +339,29 @@ st.caption(
     "via LIBRIS öppna API. Visar endast tryckta böcker."
 )
 
-soktyp = st.radio(
-    "Sök på", options=["Titel", "ISBN"], horizontal=True, index=0,
-    label_visibility="collapsed",
-)
-platshallare = "Boktitel" if soktyp == "Titel" else "ISBN (10 eller 13 siffror)"
-
 with st.form("sok_form"):
     sokterm = st.text_input(
-        "Sökterm", placeholder=platshallare, label_visibility="collapsed",
+        "Sökterm", placeholder="Titel eller ISBN", label_visibility="collapsed",
     )
-    forfattare = ""
-    if soktyp == "Titel":
-        forfattare = st.text_input(
-            "Författare (valfritt)", placeholder="Författare (valfritt)",
-            label_visibility="collapsed",
-        )
-        st.caption(
-            "💡 ISBN är att föredra när det finns tillgängligt – det ger säkrast "
-            "träff. För bästa resultat vid titelsökning: sök på fullständig "
-            "titel, gärna med författare om titeln är vanlig."
-        )
+    forfattare = st.text_input(
+        "Författare (valfritt)", placeholder="Författare (valfritt)",
+        label_visibility="collapsed",
+    )
+    st.caption(
+        "💡 ISBN är att föredra när det finns tillgängligt – det ger säkrast "
+        "träff. Vid titelsökning: sök på fullständig titel, gärna med "
+        "författare om titeln är vanlig. Författarfältet används inte vid "
+        "ISBN-sökning."
+    )
     sok_knapp = st.form_submit_button("Sök", type="primary")
 
 # Vid en ny sökning: hämta kandidatlistan och spara i session_state,
 # så att ett eventuellt bokval senare inte kräver en ny Libris-sökning.
 if sok_knapp and sokterm.strip():
+    # Appen avgör själv om söktermen är ett ISBN eller en titel
+    soktyp = "ISBN" if ar_isbn(sokterm) else "Titel"
+    if soktyp == "ISBN":
+        forfattare = ""
     with st.spinner("Söker..."):
         verk_lista, fel_per_kod = hamta_verk_lista(
             sokterm.strip(), soktyp, forfattare.strip()

@@ -6,7 +6,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 
 ## Hur den fungerar
 
-1. Användaren söker på titel (valfritt med författare) eller ISBN.
+1. Användaren skriver en titel eller ett ISBN i samma sökfält, valfritt med författare. Appen känner själv igen ISBN (10 eller 13 siffror).
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och räknar hur många som hör till respektive biblioteks sigel. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
