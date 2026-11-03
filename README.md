@@ -10,7 +10,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och räknar hur många som hör till respektive biblioteks sigel. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
-5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken där de med bestånd står först. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
+5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
 
 ## Biblioteken och deras sigler
 

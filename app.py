@@ -358,6 +358,19 @@ st.markdown(
     [data-testid="stMarkdownContainer"] table td {
         border: 1px solid #888 !important;
     }
+    /* Resultattabellen: större text och mer luft, så att två kolumner
+       fyller ungefär samma bredd som de tidigare tre */
+    [data-testid="stMarkdownContainer"] table {
+        min-width: min(28rem, 100%);
+    }
+    [data-testid="stMarkdownContainer"] table th,
+    [data-testid="stMarkdownContainer"] table td {
+        font-size: 1.1rem !important;
+        padding: 0.6rem 1.4rem !important;
+    }
+    [data-testid="stMarkdownContainer"] table td a {
+        font-weight: 600;
+    }
     @media (prefers-color-scheme: light) {
         [data-testid="stCaptionContainer"],
         [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
@@ -505,13 +518,10 @@ if "sok_sokterm" in st.session_state:
         if kod in fel_per_kod:
             status, ordning = "⚠️ Fel", 1
         elif traffar_per_kod[kod] > 0:
-            status, ordning = "✅ I bestånd", 0
+            status, ordning = "✅ Finns", 0
         else:
-            status, ordning = "–", 2
+            status, ordning = "❌ Finns ej", 2
         resultat.append({"Bibliotek": kommun_lankad, "Status": status, "ordning": ordning})
-
-    # Bibliotek med bestånd först, i övrigt i ursprunglig (alfabetisk) ordning
-    resultat.sort(key=lambda r: r["ordning"])
 
     tabell_rader = ["| Bibliotek | Status |", "|---|---|"]
     for r in resultat:
