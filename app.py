@@ -11,6 +11,7 @@ bara gissar på det mest relevanta. Ger sökningen bara ETT verk visas
 resultatet direkt, precis som innan - inget extra klick då.
 """
 
+import html
 import streamlit as st
 import requests
 import re
@@ -354,36 +355,83 @@ st.markdown(
         opacity: 1 !important;
         font-size: 0.95rem !important;
     }
-    [data-testid="stMarkdownContainer"] table th,
-    [data-testid="stMarkdownContainer"] table td {
-        border: 1px solid #888 !important;
+    /* --- Beståndstabellen --- */
+    .bestand {
+        --linje: rgba(128, 128, 128, 0.22);
+        --rubrik: rgba(110, 110, 120, 1);
+        width: 100%;
+        border: 1px solid var(--linje);
+        border-radius: 0.6rem;
+        overflow: hidden;
+        margin: 0.5rem 0 1rem 0;
     }
-    /* Resultattabellen: större text och mer luft, så att två kolumner
-       fyller ungefär samma bredd som de tidigare tre */
-    [data-testid="stMarkdownContainer"] table {
-        min-width: min(28rem, 100%);
+    .bestand table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 !important;
+        border: none !important;
     }
-    [data-testid="stMarkdownContainer"] table th,
-    [data-testid="stMarkdownContainer"] table td {
-        font-size: 1.1rem !important;
-        padding: 0.6rem 1.4rem !important;
+    .bestand th, .bestand td {
+        border: none !important;
+        text-align: left;
     }
-    [data-testid="stMarkdownContainer"] table td a {
+    .bestand th {
+        font-size: 0.75rem !important;
         font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--rubrik) !important;
+        padding: 0.75rem 1.25rem !important;
+        border-bottom: 1px solid var(--linje) !important;
     }
+    .bestand td {
+        font-size: 1.05rem !important;
+        padding: 0.8rem 1.25rem !important;
+    }
+    .bestand tr + tr td {
+        border-top: 1px solid var(--linje) !important;
+    }
+    .bestand td a {
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .bestand td a:hover { text-decoration: underline; }
+    .bestand td:last-child, .bestand th:last-child { text-align: right !important; }
+
+    /* Statusetiketter */
+    .etikett {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.2rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .etikett::before {
+        content: "";
+        width: 0.5rem; height: 0.5rem;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .etikett.finns { background: rgba(22, 163, 74, 0.14); color: #15803d; }
+    .etikett.saknas { background: rgba(128, 128, 128, 0.14); color: #5f6368; }
+    .etikett.fel { background: rgba(217, 119, 6, 0.16); color: #b45309; }
+
     @media (prefers-color-scheme: light) {
         [data-testid="stCaptionContainer"],
         [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
         input::placeholder { color: #4a4a4a !important; opacity: 1 !important; }
-        [data-testid="stMarkdownContainer"] table th,
-        [data-testid="stMarkdownContainer"] table td { color: #111111 !important; }
     }
     @media (prefers-color-scheme: dark) {
         [data-testid="stCaptionContainer"],
         [data-testid="stCaptionContainer"] * { color: #f2f2f2 !important; }
         input::placeholder { color: #c8c8c8 !important; opacity: 1 !important; }
-        [data-testid="stMarkdownContainer"] table th,
-        [data-testid="stMarkdownContainer"] table td { color: #ffffff !important; }
+        .bestand { --rubrik: rgba(170, 170, 180, 1); }
+        .etikett.finns { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
+        .etikett.saknas { background: rgba(160, 160, 160, 0.16); color: #b0b3b8; }
+        .etikett.fel { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
     }
     </style>
     """,
@@ -511,19 +559,27 @@ if "sok_sokterm" in st.session_state:
             if forfattare_vy:
                 arena_fraga = f"{bygg_arena_forfattarfraga(forfattare_vy)} AND {arena_fraga}"
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
-        kommun_lankad = f"[{info['namn']}]({sok_lank})"
+        kommun_lankad = (
+            f'<a href="{html.escape(sok_lank, quote=True)}" target="_blank">'
+            f"{html.escape(info['namn'])}</a>"
+        )
         if kod in fel_per_kod:
-            status, ordning = "⚠️ Fel", 1
+            status, ordning = '<span class="etikett fel">Fel</span>', 1
         elif traffar_per_kod[kod] > 0:
-            status, ordning = "✅ Finns", 0
+            status, ordning = '<span class="etikett finns">Finns</span>', 0
         else:
-            status, ordning = "❌ Finns ej", 2
+            status, ordning = '<span class="etikett saknas">Finns ej</span>', 2
         resultat.append({"Bibliotek": kommun_lankad, "Status": status, "ordning": ordning})
 
-    tabell_rader = ["| Bibliotek | Status |", "|---|---|"]
-    for r in resultat:
-        tabell_rader.append(f"| {r['Bibliotek']} | {r['Status']} |")
-    st.markdown("\n".join(tabell_rader))
+    rader = "".join(
+        f"<tr><td>{r['Bibliotek']}</td><td>{r['Status']}</td></tr>" for r in resultat
+    )
+    st.markdown(
+        '<div class="bestand"><table>'
+        "<thead><tr><th>Bibliotek</th><th>Status</th></tr></thead>"
+        f"<tbody>{rader}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
 
     if fel_per_kod:
         with st.expander("⚠️ Se felmeddelanden (för felsökning)"):
