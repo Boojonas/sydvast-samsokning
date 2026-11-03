@@ -52,4 +52,10 @@ streamlit run app.py
 - Sökningar cachas i 10 minuter (`st.cache_data`).
 - Anropen tvingas över IPv4, eftersom IPv6 är opålitligt i vissa molnmiljöer.
 
-**Kör du en egen kopia av appen:** byt kontaktadressen i `HEADERS` (`User-Agent`) i `app.py` till din egen, så att LIBRIS kan se vem som står bakom trafiken.
+## Hålla appen vaken
+
+Streamlit stänger av appar som inte haft besök på cirka 12 timmar. Ett schemalagt arbetsflöde i det separata repot [keepalive-samsok](https://github.com/Boojonas/keepalive-samsok) öppnar därför appen var fjärde timme.
+
+## Egen kopia
+
+Kör du en egen kopia av appen: byt kontaktadressen i `HEADERS` (`User-Agent`) i `app.py` till din egen, så att LIBRIS kan se vem som står bakom trafiken. Arbetsflödet i keepalive-samsok pekar på den här appens adress, så en egen kopia behöver ett eget sådant.
