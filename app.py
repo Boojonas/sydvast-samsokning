@@ -416,9 +416,12 @@ if not kolla_losenord():
 # --- Slut lösenordsskydd ---
 
 st.title("📚 Samsökning – Nätverket Sydväst")
-st.caption(
+# Ingress: något större än brödtext, normal vikt
+st.markdown(
+    '<p style="font-size:1.2rem; line-height:1.5; margin-bottom:0.5rem;">'
     "Gemensam sökfunktion för biblioteken i fjärrlånesamarbetet. Bygger på "
-    "bibliotekens rapporterade bestånd av tryckta titlar i LIBRIS."
+    "bibliotekens rapporterade bestånd av tryckta titlar i LIBRIS.</p>",
+    unsafe_allow_html=True,
 )
 
 with st.form("sok_form"):
@@ -428,12 +431,6 @@ with st.form("sok_form"):
     forfattare = st.text_input(
         "Författare (valfritt)", placeholder="Författare (valfritt)",
         label_visibility="collapsed",
-    )
-    st.caption(
-        "💡 ISBN är att föredra när det finns tillgängligt – det ger säkrast "
-        "träff. Vid titelsökning: sök på fullständig titel, gärna med "
-        "författare om titeln är vanlig. Författarfältet används inte vid "
-        "ISBN-sökning."
     )
     sok_knapp = st.form_submit_button("Sök", type="primary")
 
@@ -539,9 +536,8 @@ if "sok_sokterm" in st.session_state:
     elif post:
         st.warning("Finns inte hos något av biblioteken.")
 
-    st.caption(
-        "Klicka på något av de länkade biblioteken för att se lånestatus."
-    )
+    # Vägledande text under resultatet: vanlig brödtextstorlek
+    st.markdown("Klicka på något av de länkade biblioteken för att se lånestatus.")
 
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
