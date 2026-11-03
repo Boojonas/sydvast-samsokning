@@ -11,7 +11,9 @@ bara gissar på det mest relevanta. Ger sökningen bara ETT verk visas
 resultatet direkt, precis som innan - inget extra klick då.
 """
 
+import base64
 import html
+from pathlib import Path
 import streamlit as st
 import requests
 import re
@@ -344,7 +346,12 @@ def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: in
 # ---------------------------------------------------------------------------
 # WEBBGRÄNSSNITT
 # ---------------------------------------------------------------------------
-st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon="📚")
+# Bokikonen kommer från Googles Noto Emoji (Apache 2.0) och används som bild,
+# så att den ser likadan ut oavsett om besökaren har Windows, Mac eller mobil.
+IKON_SOKVAG = Path(__file__).parent / "bilder" / "bocker.png"
+IKON_BASE64 = base64.b64encode(IKON_SOKVAG.read_bytes()).decode()
+
+st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon=str(IKON_SOKVAG))
 
 # --- Ökad kontrast ---
 st.markdown(
@@ -463,7 +470,13 @@ if not kolla_losenord():
     st.stop()
 # --- Slut lösenordsskydd ---
 
-st.title("📚 Samsökning – Nätverket Sydväst")
+st.markdown(
+    "<h1>"
+    f'<img src="data:image/png;base64,{IKON_BASE64}" alt="" '
+    'style="height:1.1em; width:auto; vertical-align:-0.18em; margin-right:0.45em;">'
+    "Samsökning – Nätverket Sydväst</h1>",
+    unsafe_allow_html=True,
+)
 # Ingress: något större än brödtext, normal vikt
 st.markdown(
     '<p style="font-size:1.2rem; line-height:1.5; margin-bottom:0.5rem;">'

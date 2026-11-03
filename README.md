@@ -60,3 +60,7 @@ Streamlit stänger av appar som inte haft besök på cirka 12 timmar. Ett schema
 ## Egen kopia
 
 Kör du en egen kopia av appen: byt kontaktadressen i `HEADERS` (`User-Agent`) i `app.py` till din egen, så att LIBRIS kan se vem som står bakom trafiken. Arbetsflödet i keepalive-samsok pekar på den här appens adress, så en egen kopia behöver ett eget sådant.
+
+## Bokikonen
+
+Ikonen i `bilder/bocker.png` kommer från Googles [Noto Emoji](https://github.com/googlefonts/noto-emoji) och används under Apache-licensen 2.0. Den visas som bild i stället för som emoji, så att den ser likadan ut på alla datorer och telefoner.
