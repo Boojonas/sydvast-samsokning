@@ -1,0 +1,3 @@
+# Lösenord och nycklar ska aldrig in i repot
+.streamlit/secrets.toml
+__pycache__/

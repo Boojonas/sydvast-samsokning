@@ -8,7 +8,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 
 1. Användaren skriver en titel eller ett ISBN i samma sökfält, valfritt med författare. Appen känner själv igen ISBN (10 eller 13 siffror).
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
-3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och räknar hur många som hör till respektive biblioteks sigel. Inga fler nätverksanrop görs.
+3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och kontrollerar vilka bibliotek (sigler) som har titeln. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
 5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
 
@@ -51,6 +51,7 @@ streamlit run app.py
 
 - Python, [Streamlit](https://streamlit.io/), `requests`
 - Sökningar cachas i 10 minuter (`st.cache_data`).
+- Fast ljust tema och accentfärg i `.streamlit/config.toml`. Övrig formgivning ligger som CSS i `app.py`.
 - Anropen tvingas över IPv4, eftersom IPv6 är opålitligt i vissa molnmiljöer.
 
 ## Hålla appen vaken
@@ -61,6 +62,6 @@ Streamlit stänger av appar som inte haft besök på cirka 12 timmar. Ett schema
 
 Kör du en egen kopia av appen: byt kontaktadressen i `HEADERS` (`User-Agent`) i `app.py` till din egen, så att LIBRIS kan se vem som står bakom trafiken. Arbetsflödet i keepalive-samsok pekar på den här appens adress, så en egen kopia behöver ett eget sådant.
 
-## Bokikonen
+## Ikonen i webbläsarfliken
 
-Ikonen i `bilder/bocker.png` kommer från Googles [Noto Emoji](https://github.com/googlefonts/noto-emoji) och används under Apache-licensen 2.0. Den visas som bild i stället för som emoji, så att den ser likadan ut på alla datorer och telefoner.
+Ikonen i `bilder/bocker.png` kommer från Googles [Noto Emoji](https://github.com/googlefonts/noto-emoji) och används under Apache-licensen 2.0.

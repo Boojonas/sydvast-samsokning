@@ -6,9 +6,8 @@ lokalt i verk -> instans -> exemplar-strukturen för att korrekt avgöra
 vilka av de nio biblioteken som har boken i FYSISKT format.
 
 Om sökningen ger flera olika verk (t.ex. en vanlig titel med flera olika
-upphov) får användaren välja rätt bok i en lista, istället för att appen
-bara gissar på det mest relevanta. Ger sökningen bara ETT verk visas
-resultatet direkt, precis som innan - inget extra klick då.
+upphov) får användaren välja rätt bok i en lista. Ger sökningen bara ETT
+verk visas resultatet direkt.
 """
 
 import html
@@ -216,9 +215,7 @@ def titel_fran(verk: dict, instans, reserv: str):
 def katalogpost(verk: dict, instans, sokterm: str) -> dict:
     """Bygger en bibliografisk beskrivning av utgåvan i ISBD-anda:
     Titel : undertitel / upphov. – Upplaga. – Ort : Förlag, år. – ISBN.
-    Alla delar är valfria - saknas något i LIBRIS hoppas det över.
-    OBS: Libris bilder (dataset/images/...) går inte att hämta eller länka till
-    direkt utifrån (403 Forbidden). Ingen bildvisning byggs därför in."""
+    Alla delar är valfria - saknas något i LIBRIS hoppas det över."""
     instans = instans or {}
     titel, undertitel = titel_fran(verk, instans, sokterm)
 
@@ -283,12 +280,13 @@ def verk_etikett(verk: dict, sokterm: str) -> str:
     return etikett
 
 
-def berakna_bestand(verk: dict) -> dict:
-    """Räknar antal matchande exemplarposter per bibliotek för ETT valt verk."""
-    traffar_per_kod = {kod: 0 for kod in SIGLAR}
+def bibliotek_med_bestand(verk: dict) -> set:
+    """Returnerar koderna (nycklar i SIGLAR) för de bibliotek som har bestånd
+    av den första tryckta utgåvan av ETT valt verk."""
+    med_bestand = set()
     instans = forsta_fysiska_instansen(verk)
     if not instans:
-        return traffar_per_kod
+        return med_bestand
 
     for exemplar in instans.get("@reverse", {}).get("itemOf", []):
         held_by = exemplar.get("heldBy", {})
@@ -302,17 +300,17 @@ def berakna_bestand(verk: dict) -> dict:
             held_by.get("isPartOf", {}).get("@id", "").split("/")[-1],
         }
         for kod, info in SIGLAR.items():
-            for sigel in info["sigler"]:
-                if sigel in sigel_kandidater:
-                    traffar_per_kod[kod] += 1
+            if any(sigel in sigel_kandidater for sigel in info["sigler"]):
+                med_bestand.add(kod)
 
-    return traffar_per_kod
+    return med_bestand
 
 
 @st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
 def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: int = 3):
-    """Gör ETT anrop mot Libris och returnerar (verk_lista, fel_per_kod).
-    Själva uträkningen av bestånd görs separat (berakna_bestand), lokalt,
+    """Gör ETT anrop mot Libris och returnerar (verk_lista, felmeddelande).
+    felmeddelande är None om anropet lyckades.
+    Själva kontrollen av bestånd görs separat (bibliotek_med_bestand), lokalt,
     utan ytterligare nätverksanrop - så ett bokval i gränssnittet kräver
     ingen ny sökning mot Libris."""
     fraga = bygg_sokfraga(sokterm, soktyp, forfattare)
@@ -336,10 +334,9 @@ def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: in
             break
 
     if data is None:
-        fel_per_kod = {kod: senaste_fel for kod in SIGLAR}
-        return [], fel_per_kod
+        return [], senaste_fel or "okänt fel"
 
-    return data.get("items", []), {}
+    return data.get("items", []), None
 
 
 # ---------------------------------------------------------------------------
@@ -350,15 +347,10 @@ IKON_SOKVAG = Path(__file__).parent / "bilder" / "bocker.png"
 
 st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon=str(IKON_SOKVAG))
 
-# --- Ökad kontrast ---
+# --- Utseende (appen har ett fast ljust tema, se .streamlit/config.toml) ---
 st.markdown(
     """
     <style>
-    [data-testid="stCaptionContainer"],
-    [data-testid="stCaptionContainer"] * {
-        opacity: 1 !important;
-        font-size: 0.95rem !important;
-    }
     /* --- Beståndstabellen --- */
     .bestand {
         --linje: rgba(128, 128, 128, 0.22);
@@ -421,7 +413,6 @@ st.markdown(
     }
     .etikett.finns { background: rgba(22, 163, 74, 0.14); color: #15803d; }
     .etikett.saknas { background: rgba(128, 128, 128, 0.14); color: #5f6368; }
-    .etikett.fel { background: rgba(217, 119, 6, 0.16); color: #b45309; }
 
     /* --- Sidhuvud och ingress --- */
     .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
@@ -470,15 +461,13 @@ st.markdown(
         padding-right: 17px !important;
     }
 
-    /* Appen har ett fast ljust tema (se .streamlit/config.toml) */
-    [data-testid="stCaptionContainer"],
-    [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
+    /* Tydligare platshållartext i sökfälten */
     input::placeholder { color: #4a4a4a !important; opacity: 1 !important; }
     </style>
     """,
     unsafe_allow_html=True,
 )
-# --- Slut kontrast ---
+# --- Slut utseende ---
 
 # --- Enkelt lösenordsskydd ---
 def kolla_losenord():
@@ -538,11 +527,11 @@ if sok_knapp and sokterm.strip():
     if soktyp == "ISBN":
         forfattare = ""
     with st.spinner("Söker..."):
-        verk_lista, fel_per_kod = hamta_verk_lista(
+        verk_lista, fel = hamta_verk_lista(
             sokterm.strip(), soktyp, forfattare.strip()
         )
     st.session_state["sok_verk_lista"] = verk_lista
-    st.session_state["sok_fel_per_kod"] = fel_per_kod
+    st.session_state["sok_fel"] = fel
     st.session_state["sok_sokterm"] = sokterm.strip()
     st.session_state["sok_soktyp"] = soktyp
     st.session_state["sok_forfattare"] = forfattare.strip()
@@ -552,16 +541,22 @@ if sok_knapp and sokterm.strip():
 # ett eventuellt bokval och nästa omritning av sidan)
 if "sok_sokterm" in st.session_state:
     verk_lista = st.session_state["sok_verk_lista"]
-    fel_per_kod = st.session_state["sok_fel_per_kod"]
+    fel = st.session_state.get("sok_fel")
     sokterm_vy = st.session_state["sok_sokterm"]
     soktyp_vy = st.session_state["sok_soktyp"]
     forfattare_vy = st.session_state["sok_forfattare"]
 
     valt_verk = None
 
-    if fel_per_kod:
-        pass  # inget verk att välja - felet visas längre ner via tabellen
-    elif len(verk_lista) == 1:
+    if fel:
+        st.error(
+            "Kunde inte nå LIBRIS just nu. Försök igen om en stund."
+        )
+        with st.expander("Felmeddelande (för felsökning)"):
+            st.code(fel, language=None)
+        st.stop()
+
+    if len(verk_lista) == 1:
         valt_verk = verk_lista[0]
     elif len(verk_lista) > 1:
         etiketter = [verk_etikett(v, sokterm_vy) for v in verk_lista]
@@ -574,13 +569,13 @@ if "sok_sokterm" in st.session_state:
         valt_verk = verk_lista[st.session_state["sok_valt_index"]]
 
     post = None
-    traffar_per_kod = {kod: 0 for kod in SIGLAR}
+    med_bestand = set()
 
     if valt_verk is not None:
         instans = forsta_fysiska_instansen(valt_verk)
         if instans:
             post = katalogpost(valt_verk, instans, sokterm_vy)
-        traffar_per_kod = berakna_bestand(valt_verk)
+        med_bestand = bibliotek_med_bestand(valt_verk)
 
     if post:
         rubrik = md(post["titel"])
@@ -590,15 +585,15 @@ if "sok_sokterm" in st.session_state:
         st.markdown(md(beskrivning_text(post)))
         if post["post_url"]:
             st.markdown(f"[Visa posten i LIBRIS ↗]({post['post_url']})")
-    elif not fel_per_kod and soktyp_vy == "ISBN":
+    elif soktyp_vy == "ISBN":
         st.warning(f"ISBN \"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
-    elif not fel_per_kod:
+    else:
         st.warning(
             f"\"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera stavning, "
             "eller pröva med ISBN."
         )
 
-    resultat = []
+    rader = []
     for kod, info in SIGLAR.items():
         if soktyp_vy == "ISBN":
             arena_fraga = sokterm_vy
@@ -611,30 +606,20 @@ if "sok_sokterm" in st.session_state:
             f'<a href="{html.escape(sok_lank, quote=True)}" target="_blank">'
             f"{html.escape(info['namn'])}</a>"
         )
-        if kod in fel_per_kod:
-            status, ordning = '<span class="etikett fel">Fel</span>', 1
-        elif traffar_per_kod[kod] > 0:
-            status, ordning = '<span class="etikett finns">Finns</span>', 0
+        if kod in med_bestand:
+            status = '<span class="etikett finns">Finns</span>'
         else:
-            status, ordning = '<span class="etikett saknas">Finns ej</span>', 2
-        resultat.append({"Bibliotek": kommun_lankad, "Status": status, "ordning": ordning})
+            status = '<span class="etikett saknas">Finns ej</span>'
+        rader.append(f"<tr><td>{kommun_lankad}</td><td>{status}</td></tr>")
 
-    rader = "".join(
-        f"<tr><td>{r['Bibliotek']}</td><td>{r['Status']}</td></tr>" for r in resultat
-    )
     st.markdown(
         '<div class="bestand"><table>'
         "<thead><tr><th>Bibliotek</th><th>Status</th></tr></thead>"
-        f"<tbody>{rader}</tbody></table></div>",
+        f"<tbody>{''.join(rader)}</tbody></table></div>",
         unsafe_allow_html=True,
     )
 
-    if fel_per_kod:
-        with st.expander("⚠️ Se felmeddelanden (för felsökning)"):
-            for kod, felmeddelande in fel_per_kod.items():
-                st.write(f"**{SIGLAR[kod]['namn']}**: {felmeddelande}")
-
-    antal_traffar = sum(1 for r in resultat if r["ordning"] == 0)
+    antal_traffar = len(med_bestand)
     if antal_traffar > 0:
         st.success(f"Finns hos {antal_traffar} av {len(SIGLAR)} bibliotek.")
     elif post:
