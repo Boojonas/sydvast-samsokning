@@ -483,9 +483,22 @@ st.markdown(
 # --- Slut utseende ---
 
 # --- Enkelt lösenordsskydd ---
+def hamta_losenord():
+    """Lösenordet hämtas från Streamlits secrets (app_losenord). Finns det inget
+    lösenord inlagt är appen öppen för alla."""
+    try:
+        return st.secrets.get("app_losenord") or None
+    except Exception:  # ingen secrets-fil alls
+        return None
+
+
 def kolla_losenord():
+    losenord = hamta_losenord()
+    if not losenord:
+        return True
+
     def losenord_angivet():
-        if st.session_state.get("losenord_falt") == st.secrets.get("app_losenord"):
+        if st.session_state.get("losenord_falt") == losenord:
             st.session_state["inloggad"] = True
             del st.session_state["losenord_falt"]
         else:

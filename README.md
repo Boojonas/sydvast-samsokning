@@ -2,7 +2,7 @@
 
 En liten webbapp som visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet som har en viss tryckt titel. Tänkt som stöd vid fjärrlån mellan biblioteken.
 
-Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.app/ (lösenordsskyddad).
+Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.app/
 
 ## Hur den fungerar
 
@@ -40,12 +40,12 @@ Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. 
 
 ```bash
 pip install -r requirements.txt
-mkdir -p .streamlit
-echo 'app_losenord = "välj-ett-lösenord"' > .streamlit/secrets.toml
 streamlit run app.py
 ```
 
-`.streamlit/secrets.toml` ska **inte** checkas in i repot.
+## Lösenordsskydd (valfritt)
+
+Appen är öppen för alla. Vill man lösenordsskydda den lägger man in `app_losenord = "..."` i Streamlits *Settings → Secrets*, eller lokalt i `.streamlit/secrets.toml`. Den filen ska **inte** checkas in i repot och står därför i `.gitignore`.
 
 ## Teknik
 
