@@ -1,5 +1,5 @@
 """
-SAMSÖKNING NÄTVERKET SYDVÄST - Webbgränssnitt (Streamlit)
+SAMSÖK – NÄTVERKET SYDVÄST - Webbgränssnitt (Streamlit)
 
 Sök boktitel eller ISBN mot LIBRIS öppna API. Gör ETT anrop och navigerar
 lokalt i verk -> instans -> exemplar-strukturen för att korrekt avgöra
@@ -345,7 +345,7 @@ def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: in
 # Bokikonen (Googles Noto Emoji, Apache 2.0) används bara i webbläsarfliken.
 IKON_SOKVAG = Path(__file__).parent / "bilder" / "bocker.png"
 
-st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon=str(IKON_SOKVAG))
+st.set_page_config(page_title="Samsök – Nätverket Sydväst", page_icon=str(IKON_SOKVAG))
 
 # --- Utseende (appen har ett fast ljust tema, se .streamlit/config.toml) ---
 st.markdown(
@@ -430,14 +430,14 @@ st.markdown(
     /* --- Sidhuvud och ingress --- */
     .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
     .sidhuvud-titel {
-        font-size: 2.75rem;
+        font-size: 3.25rem;
         font-weight: 700;
         line-height: 1.1;
         letter-spacing: -0.01em;
         color: #1a365d;
     }
     .sidhuvud-undertitel {
-        font-size: 1.35rem;
+        font-size: 1.25rem;
         font-weight: 500;
         line-height: 1.3;
         margin-top: 0.2rem;
@@ -522,7 +522,7 @@ if not kolla_losenord():
 # Rubrik i två nivåer: tjänstens namn dominerar, nätverket är sekundärt
 st.markdown(
     '<div class="sidhuvud">'
-    '<div class="sidhuvud-titel">Samsökning</div>'
+    '<div class="sidhuvud-titel">Samsök</div>'
     '<div class="sidhuvud-undertitel">Nätverket Sydväst</div>'
     "</div>",
     unsafe_allow_html=True,
@@ -670,7 +670,7 @@ elif sok_knapp:
 st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
 with st.expander("Om tjänsten"):
     st.markdown(
-        "Samsökningen visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet "
+        "Samsök visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet "
         "som har en viss tryckt titel. Den bygger på det bestånd som biblioteken "
         "rapporterat till LIBRIS.\n\n"
         "**Varför kan ett bibliotek visas med Finns ej fast titeln står på hyllan?**\n"

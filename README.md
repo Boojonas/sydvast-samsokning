@@ -1,4 +1,4 @@
-# Samsökning – Nätverket Sydväst
+# Samsök – Nätverket Sydväst
 
 En liten webbapp som visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet som har en viss tryckt titel. Tänkt som stöd vid fjärrlån mellan biblioteken.
 
