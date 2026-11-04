@@ -11,7 +11,6 @@ bara gissar på det mest relevanta. Ger sökningen bara ETT verk visas
 resultatet direkt, precis som innan - inget extra klick då.
 """
 
-import base64
 import html
 from pathlib import Path
 import streamlit as st
@@ -346,10 +345,8 @@ def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: in
 # ---------------------------------------------------------------------------
 # WEBBGRÄNSSNITT
 # ---------------------------------------------------------------------------
-# Bokikonen kommer från Googles Noto Emoji (Apache 2.0) och används som bild,
-# så att den ser likadan ut oavsett om besökaren har Windows, Mac eller mobil.
+# Bokikonen (Googles Noto Emoji, Apache 2.0) används bara i webbläsarfliken.
 IKON_SOKVAG = Path(__file__).parent / "bilder" / "bocker.png"
-IKON_BASE64 = base64.b64encode(IKON_SOKVAG.read_bytes()).decode()
 
 st.set_page_config(page_title="Samsökning Nätverket Sydväst", page_icon=str(IKON_SOKVAG))
 
@@ -426,20 +423,57 @@ st.markdown(
     .etikett.saknas { background: rgba(128, 128, 128, 0.14); color: #5f6368; }
     .etikett.fel { background: rgba(217, 119, 6, 0.16); color: #b45309; }
 
-    @media (prefers-color-scheme: light) {
-        [data-testid="stCaptionContainer"],
-        [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
-        input::placeholder { color: #4a4a4a !important; opacity: 1 !important; }
+    /* --- Sidhuvud och ingress --- */
+    .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
+    .sidhuvud-titel {
+        font-size: 2.75rem;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+        color: #1a365d;
     }
-    @media (prefers-color-scheme: dark) {
-        [data-testid="stCaptionContainer"],
-        [data-testid="stCaptionContainer"] * { color: #f2f2f2 !important; }
-        input::placeholder { color: #c8c8c8 !important; opacity: 1 !important; }
-        .bestand { --rubrik: rgba(170, 170, 180, 1); }
-        .etikett.finns { background: rgba(34, 197, 94, 0.18); color: #4ade80; }
-        .etikett.saknas { background: rgba(160, 160, 160, 0.16); color: #b0b3b8; }
-        .etikett.fel { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+    .sidhuvud-undertitel {
+        font-size: 1.35rem;
+        font-weight: 500;
+        line-height: 1.3;
+        margin-top: 0.2rem;
+        color: #4a5a70;
     }
+    .ingress {
+        font-size: 1.1rem;
+        line-height: 1.5;
+        margin-bottom: 0.75rem;
+        color: #5b6675;
+    }
+
+    /* --- Sökformuläret: lätt tonad bakgrund, högre fält, bredare knapp --- */
+    [data-testid="stForm"] {
+        background: #f8fafc;
+    }
+    [data-testid="stForm"] [data-testid="stTextInputRootElement"] {
+        height: 46px;
+    }
+    /* Vita fält mot den tonade bakgrunden, så att de lyfts fram */
+    [data-testid="stForm"] [data-baseweb="input"],
+    [data-testid="stForm"] [data-baseweb="base-input"],
+    [data-testid="stForm"] input {
+        background-color: #ffffff !important;
+    }
+    [data-testid="stForm"] [data-baseweb="input"] {
+        border: 1px solid #d5dce5 !important;
+    }
+    [data-testid="stForm"] input {
+        font-size: 1.05rem !important;
+    }
+    [data-testid="stFormSubmitButton"] button {
+        padding-left: 17px !important;
+        padding-right: 17px !important;
+    }
+
+    /* Appen har ett fast ljust tema (se .streamlit/config.toml) */
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] * { color: #1a1a1a !important; }
+    input::placeholder { color: #4a4a4a !important; opacity: 1 !important; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -470,16 +504,17 @@ if not kolla_losenord():
     st.stop()
 # --- Slut lösenordsskydd ---
 
+# Rubrik i två nivåer: tjänstens namn dominerar, nätverket är sekundärt
 st.markdown(
-    "<h1>"
-    f'<img src="data:image/png;base64,{IKON_BASE64}" alt="" '
-    'style="height:1.1em; width:auto; vertical-align:-0.18em; margin-right:0.45em;">'
-    "Samsökning – Nätverket Sydväst</h1>",
+    '<div class="sidhuvud">'
+    '<div class="sidhuvud-titel">Samsökning</div>'
+    '<div class="sidhuvud-undertitel">Nätverket Sydväst</div>'
+    "</div>",
     unsafe_allow_html=True,
 )
-# Ingress: något större än brödtext, normal vikt
+# Ingress: brödtextstorlek, dämpad färg
 st.markdown(
-    '<p style="font-size:1.2rem; line-height:1.5; margin-bottom:0.5rem;">'
+    '<p class="ingress">'
     "Gemensam sökfunktion för biblioteken i fjärrlånesamarbetet. Bygger på "
     "bibliotekens rapporterade bestånd av tryckta titlar i LIBRIS.</p>",
     unsafe_allow_html=True,
@@ -490,7 +525,7 @@ with st.form("sok_form"):
         "Sökterm", placeholder="Titel eller ISBN", label_visibility="collapsed",
     )
     forfattare = st.text_input(
-        "Författare (valfritt)", placeholder="Författare (valfritt)",
+        "Filtrera på författare", placeholder="Filtrera på författare",
         label_visibility="collapsed",
     )
     sok_knapp = st.form_submit_button("Sök", type="primary")

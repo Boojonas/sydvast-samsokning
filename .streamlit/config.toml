@@ -1,3 +1,5 @@
 [theme]
+# Fast ljust tema, så att färgerna i app.py alltid stämmer med bakgrunden
+base = "light"
 # Accentfärg för knappar, markeringar och fokusramar (mellanblå, samma ton som länkarna)
 primaryColor = "#2B6CB0"
