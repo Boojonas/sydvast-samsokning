@@ -411,8 +411,21 @@ st.markdown(
         border-radius: 50%;
         background: currentColor;
     }
-    .etikett.finns { background: rgba(22, 163, 74, 0.14); color: #15803d; }
-    .etikett.saknas { background: rgba(128, 128, 128, 0.14); color: #5f6368; }
+    /* Dämpad grön för "Finns" (lugnare mot den blå sidan),
+       "Finns ej" tonas ner så att det som finns sticker ut */
+    .etikett.finns { background: #e6f2ec; color: #276749; }
+    .etikett.saknas { background: transparent; color: #8a94a3; }
+    .etikett.saknas::before { background: #c5ccd6; }
+
+    /* Sammanfattning överst i tabellens ram */
+    .bestand-topp {
+        padding: 0.9rem 1.25rem;
+        font-size: 1.1rem;
+        color: #1a365d;
+        background: #f8fafc;
+        border-bottom: 1px solid var(--linje);
+    }
+    .bestand-topp strong { font-weight: 700; }
 
     /* --- Sidhuvud och ingress --- */
     .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
@@ -612,18 +625,25 @@ if "sok_sokterm" in st.session_state:
             status = '<span class="etikett saknas">Finns ej</span>'
         rader.append(f"<tr><td>{kommun_lankad}</td><td>{status}</td></tr>")
 
+    # Sammanfattningen står överst i tabellens ram i stället för i en egen
+    # färgad ruta, så att resultatet hålls ihop och följer sidans färger
+    antal_traffar = len(med_bestand)
+    if antal_traffar > 0:
+        sammanfattning = (
+            f"Finns hos <strong>{antal_traffar}</strong> av {len(SIGLAR)} bibliotek"
+        )
+    elif post:
+        sammanfattning = "Finns inte hos något av biblioteken"
+    else:
+        sammanfattning = ""
+    topp = f'<div class="bestand-topp">{sammanfattning}</div>' if sammanfattning else ""
+
     st.markdown(
-        '<div class="bestand"><table>'
+        f'<div class="bestand">{topp}<table>'
         "<thead><tr><th>Bibliotek</th><th>Status</th></tr></thead>"
         f"<tbody>{''.join(rader)}</tbody></table></div>",
         unsafe_allow_html=True,
     )
-
-    antal_traffar = len(med_bestand)
-    if antal_traffar > 0:
-        st.success(f"Finns hos {antal_traffar} av {len(SIGLAR)} bibliotek.")
-    elif post:
-        st.warning("Finns inte hos något av biblioteken.")
 
     # Vägledande text under resultatet: vanlig brödtextstorlek
     st.markdown("Klicka på något av de länkade biblioteken för att se lånestatus.")
