@@ -650,3 +650,24 @@ if "sok_sokterm" in st.session_state:
 
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
+
+# ---------------------------------------------------------------------------
+# OM TJÄNSTEN - kort information för användaren längst ner på sidan
+# ---------------------------------------------------------------------------
+st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
+with st.expander("Om tjänsten"):
+    st.markdown(
+        "Samsökningen visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet "
+        "som har en viss tryckt titel. Den bygger på det bestånd som biblioteken "
+        "rapporterat till LIBRIS.\n\n"
+        "**Varför kan ett bibliotek visas med Finns ej fast titeln står på hyllan?**\n"
+        "- Äldre bestånd som aldrig förts in i LIBRIS syns inte.\n"
+        "- LIBRIS håller isär olika utgåvor, till exempel pocket och inbunden. "
+        "Har biblioteket en annan utgåva än den som visas kan det stå Finns ej. "
+        "Bibliotekens egna kataloger slår ofta ihop utgåvorna.\n\n"
+        "**Bara tryckta titlar.** E-böcker, ljudböcker och andra medier ingår inte.\n\n"
+        "**Lånestatus** syns inte här. Klicka på bibliotekets namn för att se den "
+        "i bibliotekets egen katalog.\n\n"
+        "[Källkod och teknisk beskrivning på GitHub ↗]"
+        "(https://github.com/Boojonas/sydvast-samsokning)"
+    )
