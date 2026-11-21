@@ -410,6 +410,36 @@ def libris_kontrollnummer(instans) -> str | None:
     return None
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def hamta_kontrollnummer_fran_post(post_url: str):
+    """Hämtar kontrollnumret ur hela Libris-posten (<post>/data.jsonld), för
+    när det inte finns med i sökresultatet. Numret ändras inte, så det
+    sparas ett dygn."""
+    try:
+        resp = requests.get(f"{post_url.rstrip('/')}/data.jsonld", headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return None
+    for nod in _lista(data.get("@graph")):
+        if isinstance(nod, dict):
+            nummer = _text(nod.get("controlNumber"))
+            if nummer and nummer.isdigit():
+                return nummer
+    return None
+
+
+def kontrollnummer_for(instans) -> str:
+    """Kontrollnumret för utgåvan: först ur sökresultatet, annars ur posten."""
+    nummer = libris_kontrollnummer(instans)
+    if nummer:
+        return nummer
+    post_id = (instans or {}).get("@id", "")
+    if post_id.startswith("http"):
+        return hamta_kontrollnummer_fran_post(post_id.split("#")[0]) or ""
+    return ""
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def hamta_lanestatus(url_mall: str, bib_id: str, isbn: str, sigel: str):
     """Hämtar exemplar med status och lånepolicy för ETT bibliotek (sigel).
@@ -892,7 +922,6 @@ if "sok_sokterm" in st.session_state:
     # syns, och ligger klar när man fäller ut den.
     if valt_verk is not None:
         instans_vald = forsta_fysiska_instansen(valt_verk)
-        bib_id = libris_kontrollnummer(instans_vald) or ""
         isbn = re.sub(r"[^0-9Xx]", "", post["isbn"][0]) if post and post["isbn"] else ""
 
         for steg in NASTA_STEG:
@@ -911,6 +940,7 @@ if "sok_sokterm" in st.session_state:
                     unsafe_allow_html=True,
                 )
                 with st.expander("Utlåningsstatus"):
+                    bib_id = kontrollnummer_for(instans_vald)
                     kan_hamta = bib_id or ("{isbn}" in steg["url"] and isbn)
                     status_per_sigel = (
                         hamta_status_for_sigler(steg["url"], bib_id, isbn, har_titeln)
