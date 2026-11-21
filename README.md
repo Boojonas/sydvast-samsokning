@@ -11,6 +11,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och kontrollerar vilka bibliotek (sigler) som har titeln. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
 5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
+6. Har någon av Lunds universitetsbibliotek titeln visas det under tabellen (samma Libris-svar). Utlåningsstatus och lånepolicy hämtas samtidigt från Lunds lånestatustjänst – se nedan – och ligger klar när man fäller ut *Utlåningsstatus*.
 
 ## Biblioteken och deras sigler
 
@@ -27,6 +28,16 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 | Vellinge | Vell |
 
 Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. Exemplar med sigler som börjar på `7` (skolbibliotek) räknas inte, eftersom de inte fjärrlånar.
+
+## Lunds universitetsbibliotek
+
+Lunds sigler står i `LUND_SIGLER` i `app.py` (digitala resurser, Ldig/Ldix, är utelämnade). Status hämtas från Lunds tjänst för [Libris lånestatus](https://kb.se/download/18.5c4746ff197581d1a74a5e/1749808286539/Libris%20l%C3%A5nestatus%202025.pdf), samma som Libris själv använder:
+
+```
+https://lubcat.lub.lu.se/cgi-bin/koha/lutil/libris_item_search.pl?Bib_ID=<kontrollnummer>&BIBL=<sigel>
+```
+
+Varje sigel returnerar bara sina egna exemplar, så appen gör ett anrop per Lund-bibliotek som har titeln, samtidigt och med fem sekunders tidsgräns. Svaren sparas i 10 minuter. Exemplaren sammanfattas per lånepolicy: antal tillgängliga, eller första återlämningsdatum om inget är tillgängligt. Referensmaterial visas utan tillgänglighet.
 
 ## Begränsningar
 

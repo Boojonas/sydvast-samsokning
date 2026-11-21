@@ -17,6 +17,8 @@ import requests
 import re
 import socket
 import time
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus
 
 # Tvingar IPv4 - vissa molnmiljöer (Streamlit Cloud, Colab) har opålitlig
@@ -306,6 +308,152 @@ def bibliotek_med_bestand(verk: dict) -> set:
     return med_bestand
 
 
+# ---------------------------------------------------------------------------
+# LUNDS UNIVERSITETSBIBLIOTEK - nästa steg i fjärrlånekedjan
+# ---------------------------------------------------------------------------
+# Lunds bibliotek med egen sigel i Libris (digitala resurser, Ldig/Ldix,
+# är utelämnade eftersom appen bara söker tryckta titlar).
+LUND_SIGLER = {
+    "L": "Universitetsbiblioteket",
+    "Lbio": "Biologibiblioteket",
+    "Lehl": "Ekonomihögskolans bibliotek",
+    "Lenv": "Internationella miljöinstitutets bibliotek",
+    "Lfa": "Fysik- och astronomibiblioteket",
+    "Lgeo": "Geobiblioteket",
+    "Lhel": "Campus Helsingborg",
+    "Lju": "Juridiska fakultetens bibliotek",
+    "Lkc": "Kemicentrums bibliotek",
+    "Lkmt": "Konstnärliga fakulteten, Konst/Teater",
+    "LMu": "Konstnärliga fakulteten, Musik",
+    "Lma": "Matematiska biblioteket",
+    "Lmel": "Medicinska fakultetens bibliotek, Lund",
+    "Lmem": "Medicinska fakultetens bibliotek, Malmö",
+    "Lrwi": "Raoul Wallenberginstitutets bibliotek",
+    "Lsam": "Samhällsvetenskapliga fakultetens bibliotek",
+    "Lsol": "SOL-biblioteket",
+    "Luan": "Asienbiblioteket",
+    "Lux": "LUX-biblioteket",
+    "Lte": "LTH Bibliotek",
+    "Ltv": "LTH Bibliotek",
+    "Laib": "LTH Bibliotek",
+    "Lth": "LTH Bibliotek, Studiecentrum",
+    "Ltm": "M-husets bibliotek",
+}
+
+# Lunds lånestatustjänst enligt KB:s format för "Libris lånestatus"
+# (registrerad i Libris biblioteksdatabas). Bib_ID = postens kontrollnummer
+# i Libris, BIBL = sigel. Varje sigel returnerar bara sina egna exemplar.
+LUND_LANESTATUS_URL = (
+    "https://lubcat.lub.lu.se/cgi-bin/koha/lutil/libris_item_search.pl"
+    "?Bib_ID={bib_id}&BIBL={sigel}"
+)
+LANESTATUS_TIDSGRANS = 5  # sekunder per anrop
+
+MANADER = ["jan", "feb", "mar", "apr", "maj", "jun",
+           "jul", "aug", "sep", "okt", "nov", "dec"]
+
+
+def lund_med_bestand(verk: dict) -> list:
+    """Returnerar de Lund-sigler som har bestånd av den första tryckta
+    utgåvan, i ordningen i LUND_SIGLER. Bara bibliotekets egen sigel räknas
+    (inte överordnad organisation), så att UB inte visas när bara ett
+    fakultetsbibliotek har titeln."""
+    instans = forsta_fysiska_instansen(verk)
+    if not instans:
+        return []
+    egna = set()
+    for exemplar in instans.get("@reverse", {}).get("itemOf", []):
+        egna.add(exemplar.get("heldBy", {}).get("@id", "").split("/")[-1])
+    return [sigel for sigel in LUND_SIGLER if sigel in egna]
+
+
+def libris_kontrollnummer(instans) -> str | None:
+    """Plockar ut postens kontrollnummer i Libris (det Lunds lånestatustjänst
+    kallar Bib_ID). Det kan ligga på några olika ställen i svaret."""
+    if not instans:
+        return None
+    meta = instans.get("meta") or {}
+    kandidat = _text(meta.get("controlNumber")) if isinstance(meta, dict) else None
+    if kandidat and kandidat.isdigit():
+        return kandidat
+    for lank in _lista(instans.get("sameAs")) + _lista(meta.get("sameAs") if isinstance(meta, dict) else None):
+        lank_id = lank.get("@id", "") if isinstance(lank, dict) else str(lank)
+        traff = re.search(r"/bib/(\d+)", lank_id)
+        if traff:
+            return traff.group(1)
+    return None
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def hamta_lanestatus(bib_id: str, sigel: str):
+    """Hämtar exemplar med status och lånepolicy för ETT Lund-bibliotek.
+    Returnerar en lista med exemplar, eller None om anropet misslyckades."""
+    url = LUND_LANESTATUS_URL.format(bib_id=quote_plus(bib_id), sigel=quote_plus(sigel))
+    try:
+        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]},
+                            timeout=LANESTATUS_TIDSGRANS)
+        resp.raise_for_status()
+        rot = ET.fromstring(resp.content)
+    except Exception:
+        return None
+
+    def falt(item, namn):
+        el = item.find(namn)
+        return (el.text or "").strip() if el is not None and el.text else ""
+
+    return [
+        {
+            "status": falt(item, "Status"),
+            "datum": falt(item, "Status_Date"),
+            "policy": falt(item, "Loan_Policy"),
+            "hylla": falt(item, "Call_No"),
+        }
+        for item in rot.iter("Item")
+    ]
+
+
+def hamta_lund_status(bib_id: str, sigler: list) -> dict:
+    """Hämtar lånestatus för flera Lund-bibliotek samtidigt.
+    Returnerar {sigel: exemplarlista eller None}."""
+    with ThreadPoolExecutor(max_workers=min(8, len(sigler))) as pool:
+        resultat = pool.map(lambda s: hamta_lanestatus(bib_id, s), sigler)
+    return dict(zip(sigler, resultat))
+
+
+def kort_datum(datum: str) -> str:
+    """'2026-11-26' -> '26 nov'."""
+    traff = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", datum)
+    if not traff:
+        return datum
+    return f"{int(traff.group(3))} {MANADER[int(traff.group(2)) - 1]}"
+
+
+def sammanfatta_exemplar(exemplar: list) -> list:
+    """En rad per lånepolicy: (policy, sammanfattning).
+    Referensmaterial visas utan tillgänglighet. Annars antal tillgängliga,
+    eller - om inget är tillgängligt - första återlämningsdatum."""
+    grupper = {}
+    for ex in exemplar:
+        grupper.setdefault(ex["policy"] or "–", []).append(ex)
+
+    rader = []
+    for policy, lista in grupper.items():
+        if "referens" in policy.lower():
+            rader.append((policy, ""))
+            continue
+        tillgangliga = sum(1 for ex in lista if ex["status"].lower() == "tillgänglig")
+        if tillgangliga:
+            rader.append((policy, f"{tillgangliga} av {len(lista)} tillgängliga"))
+            continue
+        datum = sorted(ex["datum"] for ex in lista if ex["datum"])
+        if datum:
+            rader.append((policy, f"åter {kort_datum(datum[0])}"))
+        else:
+            statusar = sorted({ex["status"] for ex in lista if ex["status"]})
+            rader.append((policy, ", ".join(statusar) or "–"))
+    return rader
+
+
 @st.cache_data(ttl=600, show_spinner=False)  # cachar identiska sökningar i 10 minuter
 def hamta_verk_lista(sokterm: str, soktyp: str, forfattare: str = "", forsok: int = 3):
     """Gör ETT anrop mot Libris och returnerar (verk_lista, felmeddelande).
@@ -426,6 +574,22 @@ st.markdown(
         border-bottom: 1px solid var(--linje);
     }
     .bestand-topp strong { font-weight: 700; }
+
+    /* --- Lunds universitetsbibliotek --- */
+    .lund { margin: 2rem 0 0.5rem 0; }
+    .lund-rubrik {
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: #1a365d;
+    }
+    .lund-bibliotek {
+        margin-top: 0.15rem;
+        color: #5b6675;
+    }
+    .lund-status { margin: 0.25rem 0 0.25rem 0; }
+    .lund-status td { font-size: 1rem !important; padding: 0.6rem 1rem !important; }
+    .lund-status th { padding: 0.6rem 1rem !important; }
+    .lund-status td:nth-child(2) { color: #5b6675; }
 
     /* --- Sidhuvud och ingress --- */
     .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
@@ -661,6 +825,52 @@ if "sok_sokterm" in st.session_state:
     # Vägledande text under resultatet: vanlig brödtextstorlek
     st.markdown("Klicka på något av de länkade biblioteken för att se lånestatus.")
 
+    # --- Lunds universitetsbibliotek ---
+    # Vilka av Lunds bibliotek som har titeln kommer från samma Libris-svar
+    # och visas direkt. Utlåningsstatus hämtas därefter, medan resten av
+    # sidan redan syns, och ligger klar när man fäller ut den.
+    lund_sigler = lund_med_bestand(valt_verk) if valt_verk is not None else []
+    if lund_sigler:
+        namn = " · ".join(html.escape(LUND_SIGLER[s]) for s in lund_sigler)
+        st.markdown(
+            '<div class="lund">'
+            '<div class="lund-rubrik">Lunds universitetsbibliotek</div>'
+            f'<div class="lund-bibliotek">{namn}</div>'
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        with st.expander("Utlåningsstatus"):
+            bib_id = libris_kontrollnummer(forsta_fysiska_instansen(valt_verk))
+            if not bib_id:
+                st.markdown("Utlåningsstatus kunde inte hämtas.")
+            else:
+                status_per_sigel = hamta_lund_status(bib_id, lund_sigler)
+                if all(v is None for v in status_per_sigel.values()):
+                    st.markdown("Utlåningsstatus kunde inte hämtas.")
+                else:
+                    lund_rader = []
+                    for sigel in lund_sigler:
+                        bib = html.escape(LUND_SIGLER[sigel])
+                        exemplar = status_per_sigel[sigel]
+                        if exemplar is None:
+                            lund_rader.append(
+                                f"<tr><td>{bib}</td><td></td><td>Kunde inte hämtas</td></tr>")
+                        elif not exemplar:
+                            lund_rader.append(
+                                f"<tr><td>{bib}</td><td></td><td>Inga exemplar</td></tr>")
+                        else:
+                            for policy, tillganglighet in sammanfatta_exemplar(exemplar):
+                                lund_rader.append(
+                                    f"<tr><td>{bib}</td><td>{html.escape(policy)}</td>"
+                                    f"<td>{html.escape(tillganglighet)}</td></tr>")
+                    st.markdown(
+                        '<div class="bestand lund-status"><table>'
+                        "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
+                        "<th>Tillgänglighet</th></tr></thead>"
+                        f"<tbody>{''.join(lund_rader)}</tbody></table></div>",
+                        unsafe_allow_html=True,
+                    )
+
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
 
@@ -679,8 +889,10 @@ with st.expander("Om tjänsten"):
         "Har biblioteket en annan utgåva än den som visas kan det stå Finns ej. "
         "Bibliotekens egna kataloger slår ofta ihop utgåvorna.\n\n"
         "**Bara tryckta titlar.** E-böcker, ljudböcker och andra medier ingår inte.\n\n"
-        "**Lånestatus** syns inte här. Klicka på bibliotekets namn för att se den "
-        "i bibliotekets egen katalog.\n\n"
+        "**Lånestatus** för biblioteken i samarbetet syns i respektive katalog. "
+        "Klicka på bibliotekets namn.\n\n"
+        "**Lunds universitetsbibliotek** visas när någon av Lunds bibliotek har "
+        "titeln. Utlåningsstatus och lånepolicy hämtas från Lunds katalog.\n\n"
         "[Källkod och teknisk beskrivning på GitHub ↗]"
         "(https://github.com/Boojonas/sydvast-samsokning)"
     )
