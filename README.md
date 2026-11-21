@@ -29,7 +29,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 
 Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. Exemplar med sigler som börjar på `7` (skolbibliotek) räknas inte, eftersom de inte fjärrlånar.
 
-## Lunds universitetsbibliotek
+## Lunds universitetsbibliotek och Depåbiblioteket
 
 Lunds sigler står i `LUND_SIGLER` i `app.py` (digitala resurser, Ldig/Ldix, är utelämnade). Status hämtas från Lunds tjänst för [Libris lånestatus](https://kb.se/download/18.5c4746ff197581d1a74a5e/1749808286539/Libris%20l%C3%A5nestatus%202025.pdf), samma som Libris själv använder:
 
@@ -38,6 +38,8 @@ https://lubcat.lub.lu.se/cgi-bin/koha/lutil/libris_item_search.pl?Bib_ID=<kontro
 ```
 
 Varje sigel returnerar bara sina egna exemplar, så appen gör ett anrop per Lund-bibliotek som har titeln, samtidigt och med fem sekunders tidsgräns. Svaren sparas i 10 minuter. Exemplaren sammanfattas per lånepolicy: antal tillgängliga, eller första återlämningsdatum om inget är tillgängligt. Referensmaterial visas utan tillgänglighet.
+
+Därefter visas Sveriges depåbibliotek och lånecentral (sigel Umdp) på samma sätt. Dess lånestatustjänst (Axiell Quria) tar både ISBN och kontrollnummer; adressen står i `DEPA_LANESTATUS_URL`. Ordningen och vilka bibliotek som ingår styrs av `NASTA_STEG` i `app.py`.
 
 ## Begränsningar
 
