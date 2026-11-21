@@ -340,35 +340,61 @@ LUND_SIGLER = {
     "Ltm": "M-husets bibliotek",
 }
 
-# Lunds lånestatustjänst enligt KB:s format för "Libris lånestatus"
-# (registrerad i Libris biblioteksdatabas). Bib_ID = postens kontrollnummer
-# i Libris, BIBL = sigel. Varje sigel returnerar bara sina egna exemplar.
+# Lånestatustjänster enligt KB:s format för "Libris lånestatus" (adresserna
+# är registrerade i Libris biblioteksdatabas). {bib_id} = postens
+# kontrollnummer i Libris, {isbn} = ISBN, {sigel} = bibliotekets sigel.
+# Varje sigel returnerar bara sina egna exemplar.
 LUND_LANESTATUS_URL = (
     "https://lubcat.lub.lu.se/cgi-bin/koha/lutil/libris_item_search.pl"
     "?Bib_ID={bib_id}&BIBL={sigel}"
 )
+DEPA_LANESTATUS_URL = (
+    "https://axiell.io/api/quria/eu-a/libris-availability/quria-release/"
+    "integrations/ncip/6da61cdf-c2af-4bef-beab-5a3f488e45e3/libris-availability"
+    "?sigel={sigel}&isbn={isbn}&bibid={bib_id}"
+)
 LANESTATUS_TIDSGRANS = 5  # sekunder per anrop
+
+# Nästa steg i fjärrlånekedjan, i den ordning de visas under huvudtabellen.
+# "visa_namn": skriv ut vilka av bibliotekens enheter som har titeln
+# (meningsfullt för Lund med många sigler, inte för en enda sigel).
+NASTA_STEG = [
+    {
+        "nyckel": "lund",
+        "rubrik": "Lunds universitetsbibliotek",
+        "sigler": LUND_SIGLER,
+        "url": LUND_LANESTATUS_URL,
+        "visa_namn": True,
+    },
+    {
+        "nyckel": "depa",
+        "rubrik": "Sveriges depåbibliotek och lånecentral",
+        "sigler": {"Umdp": "Depåbiblioteket"},
+        "url": DEPA_LANESTATUS_URL,
+        "visa_namn": False,
+    },
+]
 
 MANADER = ["jan", "feb", "mar", "apr", "maj", "jun",
            "jul", "aug", "sep", "okt", "nov", "dec"]
 
 
-def lund_med_bestand(verk: dict) -> list:
-    """Returnerar de Lund-sigler som har bestånd av den första tryckta
-    utgåvan, i ordningen i LUND_SIGLER. Bara bibliotekets egen sigel räknas
-    (inte överordnad organisation), så att UB inte visas när bara ett
-    fakultetsbibliotek har titeln."""
+def sigler_med_bestand(verk: dict, sigler: dict) -> list:
+    """Returnerar de sigler (nycklar i `sigler`) som har bestånd av den första
+    tryckta utgåvan, i ordningen i `sigler`. Bara bibliotekets egen sigel
+    räknas (inte överordnad organisation), så att t.ex. Lunds UB inte visas
+    när bara ett fakultetsbibliotek har titeln."""
     instans = forsta_fysiska_instansen(verk)
     if not instans:
         return []
     egna = set()
     for exemplar in instans.get("@reverse", {}).get("itemOf", []):
         egna.add(exemplar.get("heldBy", {}).get("@id", "").split("/")[-1])
-    return [sigel for sigel in LUND_SIGLER if sigel in egna]
+    return [sigel for sigel in sigler if sigel in egna]
 
 
 def libris_kontrollnummer(instans) -> str | None:
-    """Plockar ut postens kontrollnummer i Libris (det Lunds lånestatustjänst
+    """Plockar ut postens kontrollnummer i Libris (det lånestatustjänsterna
     kallar Bib_ID). Det kan ligga på några olika ställen i svaret."""
     if not instans:
         return None
@@ -385,10 +411,11 @@ def libris_kontrollnummer(instans) -> str | None:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def hamta_lanestatus(bib_id: str, sigel: str):
-    """Hämtar exemplar med status och lånepolicy för ETT Lund-bibliotek.
+def hamta_lanestatus(url_mall: str, bib_id: str, isbn: str, sigel: str):
+    """Hämtar exemplar med status och lånepolicy för ETT bibliotek (sigel).
     Returnerar en lista med exemplar, eller None om anropet misslyckades."""
-    url = LUND_LANESTATUS_URL.format(bib_id=quote_plus(bib_id), sigel=quote_plus(sigel))
+    url = url_mall.format(bib_id=quote_plus(bib_id), isbn=quote_plus(isbn),
+                          sigel=quote_plus(sigel))
     try:
         resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]},
                             timeout=LANESTATUS_TIDSGRANS)
@@ -412,11 +439,11 @@ def hamta_lanestatus(bib_id: str, sigel: str):
     ]
 
 
-def hamta_lund_status(bib_id: str, sigler: list) -> dict:
-    """Hämtar lånestatus för flera Lund-bibliotek samtidigt.
+def hamta_status_for_sigler(url_mall: str, bib_id: str, isbn: str, sigler: list) -> dict:
+    """Hämtar lånestatus för flera sigler samtidigt.
     Returnerar {sigel: exemplarlista eller None}."""
     with ThreadPoolExecutor(max_workers=min(8, len(sigler))) as pool:
-        resultat = pool.map(lambda s: hamta_lanestatus(bib_id, s), sigler)
+        resultat = pool.map(lambda s: hamta_lanestatus(url_mall, bib_id, isbn, s), sigler)
     return dict(zip(sigler, resultat))
 
 
@@ -590,33 +617,35 @@ st.markdown(
     .lund-status td { font-size: 1rem !important; padding: 0.6rem 1rem !important; }
     .lund-status th { padding: 0.6rem 1rem !important; }
     .lund-status td:nth-child(2) { color: #5b6675; }
+    .lund-status.en-sigel td:nth-child(1) { color: #5b6675; }
+    .lund-status.en-sigel td:nth-child(2) { color: inherit; }
 
     /* Utlåningsstatus som en ramlös textrad direkt under bibliotekens namn
        (gäller bara Lund-delen, inte "Om tjänsten") */
-    .st-key-lund { gap: 0 !important; }
-    .st-key-lund [data-testid="stExpander"] details {
+    [class*="st-key-nasta-"] { gap: 0 !important; }
+    [class*="st-key-nasta-"] [data-testid="stExpander"] details {
         border: none !important;
         background: transparent !important;
     }
-    .st-key-lund [data-testid="stExpander"] summary {
+    [class*="st-key-nasta-"] [data-testid="stExpander"] summary {
         padding: 0.6rem 0 0.2rem 0 !important;
         background: transparent !important;
         border: none !important;
     }
-    .st-key-lund [data-testid="stExpander"] details[open] > summary {
+    [class*="st-key-nasta-"] [data-testid="stExpander"] details[open] > summary {
         border-bottom: none !important;
     }
-    .st-key-lund [data-testid="stExpander"] summary p {
+    [class*="st-key-nasta-"] [data-testid="stExpander"] summary p {
         font-size: 1rem !important;
         font-weight: 600;
         color: #2b6cb0;
     }
-    .st-key-lund [data-testid="stExpander"] summary:hover { background: transparent !important; }
-    .st-key-lund [data-testid="stExpanderDetails"] {
+    [class*="st-key-nasta-"] [data-testid="stExpander"] summary:hover { background: transparent !important; }
+    [class*="st-key-nasta-"] [data-testid="stExpanderDetails"] {
         padding: 0.25rem 0 0 0 !important;
         border: none !important;
     }
-    .st-key-lund [data-testid="stExpander"] { margin-top: 0.4rem; }
+    [class*="st-key-nasta-"] [data-testid="stExpander"] { margin-top: 0.4rem; }
 
     /* Länk till Libris-posten: som biblioteksnamnen, understruken bara vid hovring */
     a.postlank { text-decoration: none; }
@@ -857,52 +886,60 @@ if "sok_sokterm" in st.session_state:
         unsafe_allow_html=True,
     )
 
-    # --- Lunds universitetsbibliotek ---
-    # Vilka av Lunds bibliotek som har titeln kommer från samma Libris-svar
-    # och visas direkt. Utlåningsstatus hämtas därefter, medan resten av
-    # sidan redan syns, och ligger klar när man fäller ut den.
-    lund_sigler = lund_med_bestand(valt_verk) if valt_verk is not None else []
-    if lund_sigler:
-        with st.container(key="lund"):
-            namn = " · ".join(html.escape(LUND_SIGLER[s]) for s in lund_sigler)
-            st.markdown(
-                '<div class="lund">'
-                '<div class="lund-rubrik">Lunds universitetsbibliotek</div>'
-                f'<div class="lund-bibliotek">{namn}</div>'
-                "</div>",
-                unsafe_allow_html=True,
-            )
-            with st.expander("Utlåningsstatus"):
-                bib_id = libris_kontrollnummer(forsta_fysiska_instansen(valt_verk))
-                if not bib_id:
-                    st.markdown("Utlåningsstatus kunde inte hämtas.")
-                else:
-                    status_per_sigel = hamta_lund_status(bib_id, lund_sigler)
-                    if all(v is None for v in status_per_sigel.values()):
+    # --- Nästa steg i fjärrlånekedjan: Lunds UB, därefter Depåbiblioteket ---
+    # Vilka bibliotek som har titeln kommer från samma Libris-svar och visas
+    # direkt. Utlåningsstatus hämtas därefter, medan resten av sidan redan
+    # syns, och ligger klar när man fäller ut den.
+    if valt_verk is not None:
+        instans_vald = forsta_fysiska_instansen(valt_verk)
+        bib_id = libris_kontrollnummer(instans_vald) or ""
+        isbn = re.sub(r"[^0-9Xx]", "", post["isbn"][0]) if post and post["isbn"] else ""
+
+        for steg in NASTA_STEG:
+            har_titeln = sigler_med_bestand(valt_verk, steg["sigler"])
+            if not har_titeln:
+                continue
+            flera = len(steg["sigler"]) > 1
+            with st.container(key=f"nasta-{steg['nyckel']}"):
+                namnrad = ""
+                if steg["visa_namn"]:
+                    namn = " · ".join(html.escape(steg["sigler"][s]) for s in har_titeln)
+                    namnrad = f'<div class="lund-bibliotek">{namn}</div>'
+                st.markdown(
+                    f'<div class="lund"><div class="lund-rubrik">{html.escape(steg["rubrik"])}</div>'
+                    f"{namnrad}</div>",
+                    unsafe_allow_html=True,
+                )
+                with st.expander("Utlåningsstatus"):
+                    kan_hamta = bib_id or ("{isbn}" in steg["url"] and isbn)
+                    status_per_sigel = (
+                        hamta_status_for_sigler(steg["url"], bib_id, isbn, har_titeln)
+                        if kan_hamta else {}
+                    )
+                    if not status_per_sigel or all(v is None for v in status_per_sigel.values()):
                         st.markdown("Utlåningsstatus kunde inte hämtas.")
-                    else:
-                        lund_rader = []
-                        for sigel in lund_sigler:
-                            bib = html.escape(LUND_SIGLER[sigel])
-                            exemplar = status_per_sigel[sigel]
-                            if exemplar is None:
-                                lund_rader.append(
-                                    f"<tr><td>{bib}</td><td></td><td>Kunde inte hämtas</td></tr>")
-                            elif not exemplar:
-                                lund_rader.append(
-                                    f"<tr><td>{bib}</td><td></td><td>Inga exemplar</td></tr>")
-                            else:
-                                for policy, tillganglighet in sammanfatta_exemplar(exemplar):
-                                    lund_rader.append(
-                                        f"<tr><td>{bib}</td><td>{html.escape(policy)}</td>"
-                                        f"<td>{html.escape(tillganglighet)}</td></tr>")
-                        st.markdown(
-                            '<div class="bestand lund-status"><table>'
-                            "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
-                            "<th>Tillgänglighet</th></tr></thead>"
-                            f"<tbody>{''.join(lund_rader)}</tbody></table></div>",
-                            unsafe_allow_html=True,
-                        )
+                        continue
+                    rader_status = []
+                    for sigel in har_titeln:
+                        bib = f"<td>{html.escape(steg['sigler'][sigel])}</td>" if flera else ""
+                        exemplar = status_per_sigel[sigel]
+                        if exemplar is None:
+                            rader_status.append(f"<tr>{bib}<td></td><td>Kunde inte hämtas</td></tr>")
+                        elif not exemplar:
+                            rader_status.append(f"<tr>{bib}<td></td><td>Inga exemplar</td></tr>")
+                        else:
+                            for policy, tillganglighet in sammanfatta_exemplar(exemplar):
+                                rader_status.append(
+                                    f"<tr>{bib}<td>{html.escape(policy)}</td>"
+                                    f"<td>{html.escape(tillganglighet)}</td></tr>")
+                    rubrikrad = ("<th>Bibliotek</th>" if flera else "") + \
+                        "<th>Lånepolicy</th><th>Tillgänglighet</th>"
+                    st.markdown(
+                        f'<div class="bestand lund-status{"" if flera else " en-sigel"}"><table>'
+                        f"<thead><tr>{rubrikrad}</tr></thead>"
+                        f"<tbody>{''.join(rader_status)}</tbody></table></div>",
+                        unsafe_allow_html=True,
+                    )
 
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
