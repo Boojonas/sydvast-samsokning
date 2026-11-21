@@ -530,7 +530,7 @@ st.markdown(
     }
     .bestand td {
         font-size: 1.05rem !important;
-        padding: 0.8rem 1.25rem !important;
+        padding: 0.6rem 1.25rem !important;
     }
     .bestand tr + tr td {
         border-top: 1px solid var(--linje) !important;
@@ -576,7 +576,7 @@ st.markdown(
     .bestand-topp strong { font-weight: 700; }
 
     /* --- Lunds universitetsbibliotek --- */
-    .lund { margin: 2rem 0 0.5rem 0; }
+    .lund { margin: 1.5rem 0 0 0; }
     .lund-rubrik {
         font-size: 1.15rem;
         font-weight: 600;
@@ -590,6 +590,37 @@ st.markdown(
     .lund-status td { font-size: 1rem !important; padding: 0.6rem 1rem !important; }
     .lund-status th { padding: 0.6rem 1rem !important; }
     .lund-status td:nth-child(2) { color: #5b6675; }
+
+    /* Utlåningsstatus som en ramlös textrad direkt under bibliotekens namn
+       (gäller bara Lund-delen, inte "Om tjänsten") */
+    .st-key-lund { gap: 0 !important; }
+    .st-key-lund [data-testid="stExpander"] details {
+        border: none !important;
+        background: transparent !important;
+    }
+    .st-key-lund [data-testid="stExpander"] summary {
+        padding: 0.6rem 0 0.2rem 0 !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    .st-key-lund [data-testid="stExpander"] details[open] > summary {
+        border-bottom: none !important;
+    }
+    .st-key-lund [data-testid="stExpander"] summary p {
+        font-size: 1rem !important;
+        font-weight: 600;
+        color: #2b6cb0;
+    }
+    .st-key-lund [data-testid="stExpander"] summary:hover { background: transparent !important; }
+    .st-key-lund [data-testid="stExpanderDetails"] {
+        padding: 0.25rem 0 0 0 !important;
+        border: none !important;
+    }
+    .st-key-lund [data-testid="stExpander"] { margin-top: 0.4rem; }
+
+    /* Länk till Libris-posten: som biblioteksnamnen, understruken bara vid hovring */
+    a.postlank { text-decoration: none; }
+    a.postlank:hover { text-decoration: underline; }
 
     /* --- Sidhuvud och ingress --- */
     .sidhuvud { margin: 0.5rem 0 0.75rem 0; }
@@ -774,7 +805,11 @@ if "sok_sokterm" in st.session_state:
         st.markdown(f"### {rubrik}")
         st.markdown(md(beskrivning_text(post)))
         if post["post_url"]:
-            st.markdown(f"[Visa posten i LIBRIS ↗]({post['post_url']})")
+            st.markdown(
+                f'<a class="postlank" href="{html.escape(post["post_url"], quote=True)}" '
+                'target="_blank">Visa posten i LIBRIS ↗</a>',
+                unsafe_allow_html=True,
+            )
     elif soktyp_vy == "ISBN":
         st.warning(f"ISBN \"{sokterm_vy}\" hittades inte i LIBRIS. Kontrollera siffrorna.")
     else:
@@ -822,54 +857,52 @@ if "sok_sokterm" in st.session_state:
         unsafe_allow_html=True,
     )
 
-    # Vägledande text under resultatet: vanlig brödtextstorlek
-    st.markdown("Klicka på något av de länkade biblioteken för att se lånestatus.")
-
     # --- Lunds universitetsbibliotek ---
     # Vilka av Lunds bibliotek som har titeln kommer från samma Libris-svar
     # och visas direkt. Utlåningsstatus hämtas därefter, medan resten av
     # sidan redan syns, och ligger klar när man fäller ut den.
     lund_sigler = lund_med_bestand(valt_verk) if valt_verk is not None else []
     if lund_sigler:
-        namn = " · ".join(html.escape(LUND_SIGLER[s]) for s in lund_sigler)
-        st.markdown(
-            '<div class="lund">'
-            '<div class="lund-rubrik">Lunds universitetsbibliotek</div>'
-            f'<div class="lund-bibliotek">{namn}</div>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
-        with st.expander("Utlåningsstatus"):
-            bib_id = libris_kontrollnummer(forsta_fysiska_instansen(valt_verk))
-            if not bib_id:
-                st.markdown("Utlåningsstatus kunde inte hämtas.")
-            else:
-                status_per_sigel = hamta_lund_status(bib_id, lund_sigler)
-                if all(v is None for v in status_per_sigel.values()):
+        with st.container(key="lund"):
+            namn = " · ".join(html.escape(LUND_SIGLER[s]) for s in lund_sigler)
+            st.markdown(
+                '<div class="lund">'
+                '<div class="lund-rubrik">Lunds universitetsbibliotek</div>'
+                f'<div class="lund-bibliotek">{namn}</div>'
+                "</div>",
+                unsafe_allow_html=True,
+            )
+            with st.expander("Utlåningsstatus"):
+                bib_id = libris_kontrollnummer(forsta_fysiska_instansen(valt_verk))
+                if not bib_id:
                     st.markdown("Utlåningsstatus kunde inte hämtas.")
                 else:
-                    lund_rader = []
-                    for sigel in lund_sigler:
-                        bib = html.escape(LUND_SIGLER[sigel])
-                        exemplar = status_per_sigel[sigel]
-                        if exemplar is None:
-                            lund_rader.append(
-                                f"<tr><td>{bib}</td><td></td><td>Kunde inte hämtas</td></tr>")
-                        elif not exemplar:
-                            lund_rader.append(
-                                f"<tr><td>{bib}</td><td></td><td>Inga exemplar</td></tr>")
-                        else:
-                            for policy, tillganglighet in sammanfatta_exemplar(exemplar):
+                    status_per_sigel = hamta_lund_status(bib_id, lund_sigler)
+                    if all(v is None for v in status_per_sigel.values()):
+                        st.markdown("Utlåningsstatus kunde inte hämtas.")
+                    else:
+                        lund_rader = []
+                        for sigel in lund_sigler:
+                            bib = html.escape(LUND_SIGLER[sigel])
+                            exemplar = status_per_sigel[sigel]
+                            if exemplar is None:
                                 lund_rader.append(
-                                    f"<tr><td>{bib}</td><td>{html.escape(policy)}</td>"
-                                    f"<td>{html.escape(tillganglighet)}</td></tr>")
-                    st.markdown(
-                        '<div class="bestand lund-status"><table>'
-                        "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
-                        "<th>Tillgänglighet</th></tr></thead>"
-                        f"<tbody>{''.join(lund_rader)}</tbody></table></div>",
-                        unsafe_allow_html=True,
-                    )
+                                    f"<tr><td>{bib}</td><td></td><td>Kunde inte hämtas</td></tr>")
+                            elif not exemplar:
+                                lund_rader.append(
+                                    f"<tr><td>{bib}</td><td></td><td>Inga exemplar</td></tr>")
+                            else:
+                                for policy, tillganglighet in sammanfatta_exemplar(exemplar):
+                                    lund_rader.append(
+                                        f"<tr><td>{bib}</td><td>{html.escape(policy)}</td>"
+                                        f"<td>{html.escape(tillganglighet)}</td></tr>")
+                        st.markdown(
+                            '<div class="bestand lund-status"><table>'
+                            "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
+                            "<th>Tillgänglighet</th></tr></thead>"
+                            f"<tbody>{''.join(lund_rader)}</tbody></table></div>",
+                            unsafe_allow_html=True,
+                        )
 
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
