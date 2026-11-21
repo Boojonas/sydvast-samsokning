@@ -314,30 +314,30 @@ def bibliotek_med_bestand(verk: dict) -> set:
 # Lunds bibliotek med egen sigel i Libris (digitala resurser, Ldig/Ldix,
 # är utelämnade eftersom appen bara söker tryckta titlar).
 LUND_SIGLER = {
-    "L": "Universitetsbiblioteket",
-    "Lbio": "Biologibiblioteket",
-    "Lehl": "Ekonomihögskolans bibliotek",
-    "Lenv": "Internationella miljöinstitutets bibliotek",
-    "Lfa": "Fysik- och astronomibiblioteket",
-    "Lgeo": "Geobiblioteket",
-    "Lhel": "Campus Helsingborg",
-    "Lju": "Juridiska fakultetens bibliotek",
-    "Lkc": "Kemicentrums bibliotek",
-    "Lkmt": "Konstnärliga fakulteten, Konst/Teater",
-    "LMu": "Konstnärliga fakulteten, Musik",
-    "Lma": "Matematiska biblioteket",
-    "Lmel": "Medicinska fakultetens bibliotek, Lund",
-    "Lmem": "Medicinska fakultetens bibliotek, Malmö",
-    "Lrwi": "Raoul Wallenberginstitutets bibliotek",
-    "Lsam": "Samhällsvetenskapliga fakultetens bibliotek",
+    "L": "UB",
+    "Lsam": "Sambib",
+    "Lux": "LUX-biblioteket",
     "Lsol": "SOL-biblioteket",
     "Luan": "Asienbiblioteket",
-    "Lux": "LUX-biblioteket",
-    "Lte": "LTH Bibliotek",
-    "Ltv": "LTH Bibliotek",
-    "Laib": "LTH Bibliotek",
-    "Lth": "LTH Bibliotek, Studiecentrum",
-    "Ltm": "M-husets bibliotek",
+    "Lehl": "Ekonomihögskolan",
+    "Lju": "Juridik",
+    "Lte": "LTH bibliotek",
+    "Ltv": "LTH bibliotek",
+    "Laib": "LTH bibliotek",
+    "Lth": "LTH Studiecentrum",
+    "Ltm": "M-huset",
+    "LMu": "Musik",
+    "Lkmt": "Konst/Teater",
+    "Lrwi": "Raoul Wallenberginstitutet",
+    "Lenv": "Miljöinstitutet",
+    "Lfa": "Fysik och astronomi",
+    "Lbio": "Biologibiblioteket",
+    "Lgeo": "Geobiblioteket",
+    "Lma": "Matematik",
+    "Lmel": "Medicin Lund",
+    "Lmem": "Medicin Malmö",
+    "Lkc": "Kemicentrum",
+    "Lhel": "Campus Helsingborg",
 }
 
 # Lånestatustjänster enligt KB:s format för "Libris lånestatus" (adresserna
@@ -500,7 +500,7 @@ def sammanfatta_exemplar(exemplar: list) -> list:
             continue
         tillgangliga = sum(1 for ex in lista if ex["status"].lower() == "tillgänglig")
         if tillgangliga:
-            rader.append((policy, f"{tillgangliga} av {len(lista)} tillgängliga"))
+            rader.append((policy, f"{tillgangliga} av {len(lista)}"))
             continue
         datum = sorted(ex["datum"] for ex in lista if ex["datum"])
         if datum:
@@ -926,19 +926,25 @@ if "sok_sokterm" in st.session_state:
 
         for steg in NASTA_STEG:
             har_titeln = sigler_med_bestand(valt_verk, steg["sigler"])
-            if not har_titeln:
-                continue
             flera = len(steg["sigler"]) > 1
             with st.container(key=f"nasta-{steg['nyckel']}"):
-                namnrad = ""
-                if steg["visa_namn"]:
-                    namn = " · ".join(html.escape(steg["sigler"][s]) for s in har_titeln)
-                    namnrad = f'<div class="lund-bibliotek">{namn}</div>'
+                # Raden under rubriken: vilka enheter som har titeln (unika
+                # kortnamn i ordning), "Finns" för en enda sigel, annars "Finns ej"
+                if not har_titeln:
+                    bestandsrad = "Finns ej"
+                elif steg["visa_namn"]:
+                    namn = list(dict.fromkeys(steg["sigler"][s] for s in har_titeln))
+                    bestandsrad = " · ".join(html.escape(n) for n in namn)
+                else:
+                    bestandsrad = "Finns"
+                namnrad = f'<div class="lund-bibliotek">{bestandsrad}</div>'
                 st.markdown(
                     f'<div class="lund"><div class="lund-rubrik">{html.escape(steg["rubrik"])}</div>'
                     f"{namnrad}</div>",
                     unsafe_allow_html=True,
                 )
+                if not har_titeln:
+                    continue
                 with st.expander("Utlåningsstatus"):
                     bib_id = kontrollnummer_for(instans_vald)
                     kan_hamta = bib_id or ("{isbn}" in steg["url"] and isbn)
@@ -992,8 +998,8 @@ with st.expander("Om tjänsten"):
         "**Lånestatus** för biblioteken i samarbetet syns i respektive katalog. "
         "Klicka på bibliotekets namn.\n\n"
         "**Lunds universitetsbibliotek** och **Sveriges depåbibliotek och "
-        "lånecentral** visas under tabellen när de har titeln. Utlåningsstatus "
-        "och lånepolicy hämtas från bibliotekens egna system.\n\n"
+        "lånecentral** visas under tabellen, med utlåningsstatus och lånepolicy "
+        "från bibliotekens egna system när de har titeln.\n\n"
         "[Källkod och teknisk beskrivning på GitHub ↗]"
         "(https://github.com/Boojonas/sydvast-samsokning)"
     )
