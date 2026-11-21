@@ -962,7 +962,8 @@ with st.expander("Om tjänsten"):
         "**Lånestatus** för biblioteken i samarbetet syns i respektive katalog. "
         "Klicka på bibliotekets namn.\n\n"
         "**Lunds universitetsbibliotek** visas när någon av Lunds bibliotek har "
-        "titeln. Utlåningsstatus och lånepolicy hämtas från Lunds katalog.\n\n"
+        "titeln, och därefter Sveriges depåbibliotek och lånecentral. "
+        "Utlåningsstatus och lånepolicy hämtas från bibliotekens egna system.\n\n"
         "[Källkod och teknisk beskrivning på GitHub ↗]"
         "(https://github.com/Boojonas/sydvast-samsokning)"
     )
