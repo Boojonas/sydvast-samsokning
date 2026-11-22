@@ -365,6 +365,11 @@ NASTA_STEG = [
         "sigler": LUND_SIGLER,
         "url": LUND_LANESTATUS_URL,
         "visa_namn": True,
+        # Länkmallar till posten i Lunds katalog Finn, registrerade i Libris
+        # biblioteksdatabas: i första hand via kontrollnummer, annars ISBN.
+        "katalog": ("Finn",
+                    "https://finn.lub.lu.se/libris/bibid/(LIBRIS){bib_id}",
+                    "https://finn.lub.lu.se/libris/isbn/{isbn}"),
     },
     {
         "nyckel": "depa",
@@ -372,6 +377,7 @@ NASTA_STEG = [
         "sigler": {"Umdp": "Depåbiblioteket"},
         "url": DEPA_LANESTATUS_URL,
         "visa_namn": False,
+        "katalog": None,  # Depåbiblioteket har ingen egen publik katalog
     },
 ]
 
@@ -952,8 +958,26 @@ if "sok_sokterm" in st.session_state:
                         hamta_status_for_sigler(steg["url"], bib_id, isbn, har_titeln)
                         if kan_hamta else {}
                     )
+                    # Länk till posten i bibliotekets egen katalog (t.ex. Finn),
+                    # för hylla och övriga detaljer
+                    katalog_lank = ""
+                    if steg.get("katalog"):
+                        katalognamn, mall_bibid, mall_isbn = steg["katalog"]
+                        if bib_id:
+                            katalog_url = mall_bibid.format(bib_id=quote_plus(bib_id))
+                        elif isbn:
+                            katalog_url = mall_isbn.format(isbn=quote_plus(isbn))
+                        else:
+                            katalog_url = ""
+                        if katalog_url:
+                            katalog_lank = (
+                                f'<a class="postlank" href="{html.escape(katalog_url, quote=True)}" '
+                                f'target="_blank">Visa posten i {html.escape(katalognamn)} ↗</a>'
+                            )
                     if not status_per_sigel or all(v is None for v in status_per_sigel.values()):
                         st.markdown("Utlåningsstatus kunde inte hämtas.")
+                        if katalog_lank:
+                            st.markdown(katalog_lank, unsafe_allow_html=True)
                         continue
                     rader_status = []
                     for sigel in har_titeln:
@@ -976,6 +1000,8 @@ if "sok_sokterm" in st.session_state:
                         f"<tbody>{''.join(rader_status)}</tbody></table></div>",
                         unsafe_allow_html=True,
                     )
+                    if katalog_lank:
+                        st.markdown(katalog_lank, unsafe_allow_html=True)
 
 elif sok_knapp:
     st.warning("Skriv in en sökterm.")
