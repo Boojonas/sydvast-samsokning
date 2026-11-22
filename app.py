@@ -365,6 +365,7 @@ NASTA_STEG = [
         "sigler": LUND_SIGLER,
         "url": LUND_LANESTATUS_URL,
         "visa_namn": True,
+        "markera_kurs": True,  # Lunds kursböcker fjärrlånas i regel inte
         # Länkmallar till posten i Lunds katalog Finn, registrerade i Libris
         # biblioteksdatabas: i första hand via kontrollnummer, annars ISBN.
         "katalog": ("Finn",
@@ -470,6 +471,7 @@ def hamta_lanestatus(url_mall: str, bib_id: str, isbn: str, sigel: str):
             "datum": falt(item, "Status_Date"),
             "policy": falt(item, "Loan_Policy"),
             "hylla": falt(item, "Call_No"),
+            "plats": falt(item, "Location"),
         }
         for item in rot.iter("Item")
     ]
@@ -491,29 +493,39 @@ def kort_datum(datum: str) -> str:
     return f"{int(traff.group(3))} {MANADER[int(traff.group(2)) - 1]}"
 
 
-def sammanfatta_exemplar(exemplar: list) -> list:
-    """En rad per lånepolicy: (policy, sammanfattning).
-    Referensmaterial visas utan tillgänglighet. Annars antal tillgängliga,
-    eller - om inget är tillgängligt - första återlämningsdatum."""
+def ar_kursbok(ex: dict) -> bool:
+    """Kursbok om hyllsignum eller placering nämner "kurs" (Kursbok,
+    Kurslitteratur, Kursbokssamling o.s.v.)."""
+    return "kurs" in f"{ex.get('hylla', '')} {ex.get('plats', '')}".lower()
+
+
+def sammanfatta_exemplar(exemplar: list, markera_kurs: bool = False) -> list:
+    """En rad per lånepolicy: (policy, kursbok, sammanfattning).
+    Med markera_kurs får kursböcker en egen rad, eftersom de i regel inte
+    fjärrlånas även om lånepolicyn är hemlån. Referensmaterial visas utan
+    tillgänglighet. Annars antal tillgängliga, eller - om inget är
+    tillgängligt - första återlämningsdatum."""
     grupper = {}
     for ex in exemplar:
-        grupper.setdefault(ex["policy"] or "–", []).append(ex)
+        policy = ex["policy"] or "–"
+        kurs = markera_kurs and "referens" not in policy.lower() and ar_kursbok(ex)
+        grupper.setdefault((policy, kurs), []).append(ex)
 
     rader = []
-    for policy, lista in grupper.items():
+    for (policy, kurs), lista in grupper.items():
         if "referens" in policy.lower():
-            rader.append((policy, ""))
+            rader.append((policy, kurs, ""))
             continue
         tillgangliga = sum(1 for ex in lista if ex["status"].lower() == "tillgänglig")
         if tillgangliga:
-            rader.append((policy, f"{tillgangliga} av {len(lista)}"))
+            rader.append((policy, kurs, f"{tillgangliga} av {len(lista)}"))
             continue
         datum = sorted(ex["datum"] for ex in lista if ex["datum"])
         if datum:
-            rader.append((policy, f"åter {kort_datum(datum[0])}"))
+            rader.append((policy, kurs, f"åter {kort_datum(datum[0])}"))
         else:
             statusar = sorted({ex["status"] for ex in lista if ex["status"]})
-            rader.append((policy, ", ".join(statusar) or "–"))
+            rader.append((policy, kurs, ", ".join(statusar) or "–"))
     return rader
 
 
@@ -653,6 +665,7 @@ st.markdown(
     .lund-status td { font-size: 1rem !important; padding: 0.6rem 1rem !important; }
     .lund-status th { padding: 0.6rem 1rem !important; }
     .lund-status td:nth-child(2) { color: #5b6675; }
+    .lund-status strong { color: #1a1a1a; font-weight: 700; }
     .lund-status.en-sigel td:nth-child(1) { color: #5b6675; }
     .lund-status.en-sigel td:nth-child(2) { color: inherit; }
 
@@ -988,9 +1001,11 @@ if "sok_sokterm" in st.session_state:
                         elif not exemplar:
                             rader_status.append(f"<tr>{bib}<td></td><td>Inga exemplar</td></tr>")
                         else:
-                            for policy, tillganglighet in sammanfatta_exemplar(exemplar):
+                            for policy, kurs, tillganglighet in sammanfatta_exemplar(
+                                    exemplar, steg.get("markera_kurs", False)):
+                                policy_html = html.escape(policy) + (" · <strong>Kursbok</strong>" if kurs else "")
                                 rader_status.append(
-                                    f"<tr>{bib}<td>{html.escape(policy)}</td>"
+                                    f"<tr>{bib}<td>{policy_html}</td>"
                                     f"<td>{html.escape(tillganglighet)}</td></tr>")
                     rubrikrad = ("<th>Bibliotek</th>" if flera else "") + \
                         "<th>Lånepolicy</th><th>Tillgänglighet</th>"
