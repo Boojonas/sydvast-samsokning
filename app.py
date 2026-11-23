@@ -400,6 +400,13 @@ def sigler_med_bestand(verk: dict, sigler: dict) -> list:
     return [sigel for sigel in sigler if sigel in egna]
 
 
+def ar_kontrollnummer(varde: str) -> bool:
+    """Libris kontrollnummer är antingen siffror (äldre poster, t.ex. 11449150)
+    eller en bokstavs- och sifferkod (poster skapade i nya Libris, t.ex.
+    whcb2rntth1cn4jd). Lånestatustjänsterna tar emot båda."""
+    return bool(re.fullmatch(r"[0-9a-z]+", varde))
+
+
 def libris_kontrollnummer(instans) -> str | None:
     """Plockar ut postens kontrollnummer i Libris (det lånestatustjänsterna
     kallar Bib_ID). Det kan ligga på några olika ställen i svaret."""
@@ -407,7 +414,7 @@ def libris_kontrollnummer(instans) -> str | None:
         return None
     meta = instans.get("meta") or {}
     kandidat = _text(meta.get("controlNumber")) if isinstance(meta, dict) else None
-    if kandidat and kandidat.isdigit():
+    if kandidat and ar_kontrollnummer(kandidat):
         return kandidat
     for lank in _lista(instans.get("sameAs")) + _lista(meta.get("sameAs") if isinstance(meta, dict) else None):
         lank_id = lank.get("@id", "") if isinstance(lank, dict) else str(lank)
@@ -431,7 +438,7 @@ def hamta_kontrollnummer_fran_post(post_url: str):
     for nod in _lista(data.get("@graph")):
         if isinstance(nod, dict):
             nummer = _text(nod.get("controlNumber"))
-            if nummer and nummer.isdigit():
+            if nummer and ar_kontrollnummer(nummer):
                 return nummer
     return None
 
