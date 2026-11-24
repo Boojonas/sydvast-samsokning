@@ -701,7 +701,7 @@ st.markdown(
     .bestand td:last-child, .bestand th:last-child { text-align: right !important; }
 
     /* Huvudlistan med utfällbara rader (ersätter tabellen) */
-    .lista-rubrik, .biblioteksrad > summary {
+    .lista-rubrik, .biblioteksrad > summary, .biblioteksrad.enkel {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -721,10 +721,14 @@ st.markdown(
         cursor: pointer;
         list-style: none;
         font-size: 1.05rem;
-        min-height: 2.6rem;
-        padding-top: 0.4rem;
-        padding-bottom: 0.4rem;
+        min-height: 2.9rem;
     }
+    .biblioteksrad.enkel { font-size: 1.05rem; min-height: 2.9rem; }
+    .biblioteksrad + .biblioteksrad { border-top: 1px solid var(--linje); }
+    .biblioteksrad.enkel .namn { text-decoration: none; }
+    .biblioteksrad.enkel .namn:hover { text-decoration: underline; }
+    /* Osynlig pil håller samma vänstermarginal som raderna med pil */
+    .biblioteksrad.enkel .namn::before { border-color: transparent; }
     .biblioteksrad > summary::-webkit-details-marker { display: none; }
     .biblioteksrad .namn {
         font-weight: 600;
@@ -1112,18 +1116,26 @@ if "sok_sokterm" in st.session_state:
         else:
             status = '<span class="etikett saknas">Finns ej</span>'
 
+        # Bara bibliotek med lånestatus (och bestånd) får pil och kan fällas ut.
+        # Övriga visar namnet som länk till katalogen, som tidigare.
+        if not (kod in lanestatus_per_kod and kod in med_bestand):
+            rader.append(
+                '<div class="biblioteksrad enkel">'
+                f'<a class="namn" href="{html.escape(sok_lank, quote=True)}" target="_blank">'
+                f'{html.escape(info["namn"])}</a>{status}</div>')
+            continue
+
         innehall = []
-        if kod in lanestatus_per_kod and kod in med_bestand:
-            enheter = info["lanestatus"]["enheter"]
-            svar = lanestatus_per_kod[kod]
-            if all(v is None for v in svar.values()):
-                innehall.append('<div class="enhet"><span>Utlåningsstatus kunde inte hämtas</span></div>')
-            else:
-                for sigel in sorted((s_ for s_ in svar if svar[s_]), key=lambda s_: enheter[s_]):
-                    innehall.append(
-                        f'<div class="enhet"><span>{html.escape(enheter[sigel])}</span>'
-                        f"<span>{html.escape(tillganglighet_text(svar[sigel]))}</span></div>")
-        if info.get("bestall_i_katalogen") and kod in med_bestand:
+        enheter = info["lanestatus"]["enheter"]
+        svar = lanestatus_per_kod[kod]
+        if all(v is None for v in svar.values()):
+            innehall.append('<div class="enhet"><span>Utlåningsstatus kunde inte hämtas</span></div>')
+        else:
+            for sigel in sorted((s_ for s_ in svar if svar[s_]), key=lambda s_: enheter[s_]):
+                innehall.append(
+                    f'<div class="enhet"><span>{html.escape(enheter[sigel])}</span>'
+                    f"<span>{html.escape(tillganglighet_text(svar[sigel]))}</span></div>")
+        if info.get("bestall_i_katalogen"):
             lank = info["sok_url"].format(query=quote_plus(isbn_valt)) if isbn_valt else sok_lank
             lanktext = "Beställ i katalogen ↗"
         else:
