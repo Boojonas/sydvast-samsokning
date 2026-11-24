@@ -270,6 +270,14 @@ def beskrivning_text(post: dict) -> str:
     return ". – ".join(delar) + ("." if delar else "")
 
 
+def utgivningsar(verk: dict) -> int:
+    """Utgivningsåret för verkets första tryckta utgåva som tal, för
+    sortering. Saknas år (eller går det inte att tolka) blir det 0."""
+    ar = katalogpost(verk, forsta_fysiska_instansen(verk), "")["ar"] or ""
+    traff = re.search(r"\d{4}", ar)
+    return int(traff.group(0)) if traff else 0
+
+
 def verk_etikett(verk: dict, sokterm: str) -> str:
     """Rad i träfflistan: 'Titel / Upphov. – Ort : Förlag, år'."""
     post = katalogpost(verk, forsta_fysiska_instansen(verk), sokterm)
@@ -841,7 +849,7 @@ if sok_knapp and sokterm.strip():
     st.session_state["sok_sokterm"] = sokterm.strip()
     st.session_state["sok_soktyp"] = soktyp
     st.session_state["sok_forfattare"] = forfattare.strip()
-    st.session_state["sok_valt_index"] = 0  # återställ val vid ny sökning
+    st.session_state["sok_valt_index"] = None  # återställ val vid ny sökning
 
 # Visa resultat om en sökning gjorts (ligger kvar i session_state mellan
 # ett eventuellt bokval och nästa omritning av sidan)
@@ -866,11 +874,26 @@ if "sok_sokterm" in st.session_state:
         valt_verk = verk_lista[0]
     elif len(verk_lista) > 1:
         etiketter = [verk_etikett(v, sokterm_vy) for v in verk_lista]
+        # Sortering av de (högst 20) träffar Libris returnerat: i Libris
+        # relevansordning, eller nyast först (stabil, så att lika år
+        # behåller relevansordningen).
+        st.markdown("Flera poster matchar. Välj ett alternativ i listan nedan.")
+        sortering = st.radio(
+            "Sortera", ["Relevans", "Nyast först"], horizontal=True,
+            key="sok_sortering", label_visibility="collapsed",
+        )
+        ordning = list(range(len(verk_lista)))
+        if sortering == "Nyast först":
+            ordning.sort(key=lambda i: -utgivningsar(verk_lista[i]))
+        # Förvalt alternativ: överst i aktuell ordning, tills användaren väljer
+        if st.session_state.get("sok_valt_index") not in ordning or \
+                st.session_state.get("sok_forra_sortering") != sortering:
+            st.session_state["sok_valt_index"] = ordning[0]
+        st.session_state["sok_forra_sortering"] = sortering
         st.radio(
-            "Flera poster matchar. Välj ett alternativ i listan nedan.",
-            options=range(len(verk_lista)),
+            "Träffar", options=ordning,
             format_func=lambda i: etiketter[i],
-            key="sok_valt_index",
+            key="sok_valt_index", label_visibility="collapsed",
         )
         valt_verk = verk_lista[st.session_state["sok_valt_index"]]
 

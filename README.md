@@ -9,7 +9,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 1. Användaren skriver en titel eller ett ISBN i samma sökfält, valfritt med författare. Appen känner själv igen ISBN (10 eller 13 siffror).
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och kontrollerar vilka bibliotek (sigler) som har titeln. Inga fler nätverksanrop görs.
-4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista.
+4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista, sorterad efter relevans eller nyast först. Sorteringen gäller de 20 mest relevanta träffarna från Libris.
 5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
 6. Har någon av Lunds universitetsbibliotek titeln visas det under tabellen (samma Libris-svar). Utlåningsstatus och lånepolicy hämtas samtidigt från Lunds lånestatustjänst – se nedan – och ligger klar när man fäller ut *Utlåningsstatus*.
 
