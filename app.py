@@ -499,11 +499,20 @@ def hamta_lanestatus(url_mall: str, bib_id: str, isbn: str, sigel: str):
     Returnerar en lista med exemplar, eller None om anropet misslyckades."""
     url = url_mall.format(bib_id=quote_plus(bib_id), isbn=quote_plus(isbn),
                           sigel=quote_plus(sigel))
+    huvud = {"User-Agent": HEADERS["User-Agent"]}
     try:
-        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]},
-                            timeout=LANESTATUS_TIDSGRANS)
+        try:
+            resp = requests.get(url, headers=huvud, timeout=LANESTATUS_TIDSGRANS)
+        except requests.exceptions.SSLError:
+            # Vissa servrar (t.ex. BOOK-IT hos Axiell) är konfigurerade för http
+            resp = requests.get("http://" + url.split("://", 1)[1], headers=huvud,
+                                timeout=LANESTATUS_TIDSGRANS)
         resp.raise_for_status()
-        rot = ET.fromstring(resp.content)
+        # BOOK-IT skriver t.ex. "Barn & ungdom" med ett oskyddat &, vilket inte
+        # är giltig XML. Skydda sådana & innan svaret tolkas.
+        innehall = re.sub(rb"&(?!(?:#\d+|#x[0-9a-fA-F]+|[A-Za-z]\w*);)", b"&amp;",
+                          resp.content)
+        rot = ET.fromstring(innehall)
     except Exception:
         return None
 
