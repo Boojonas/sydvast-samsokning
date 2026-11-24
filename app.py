@@ -275,8 +275,17 @@ def behall_sortering():
     behåll då det tidigare valet så att ett alternativ alltid är aktivt."""
     if st.session_state.get("sok_sortering") is None:
         st.session_state["sok_sortering"] = (
-            "År ↓" if st.session_state.get("sok_forra_sortering") == "Nyast först" else "Relevans"
+            "År" if st.session_state.get("sok_forra_sortering") == "Nyast först" else "Relevans"
         )
+
+
+def sorteringsetikett(alternativ: str) -> str:
+    """Valt sorteringsalternativ visas i blått och fetstil med pil, det
+    andra som vanlig text (Markdown i etiketten, så att det inte hänger på
+    Streamlits interna CSS-namn)."""
+    if st.session_state.get("sok_sortering", "Relevans") == alternativ:
+        return f":blue[**{alternativ} ↓**]"
+    return alternativ
 
 
 def utgivningsar(verk: dict) -> int:
@@ -720,26 +729,26 @@ st.markdown(
     }
     [class*="st-key-nasta-"] [data-testid="stExpander"] { margin-top: 0.4rem; }
 
-    /* Sortering av träfflistan: ramlösa textval med avdelare, aktivt val i blått */
+    /* Sortering av träfflistan: ramlösa textval med avdelare. Det valda
+       alternativet färgas och fetas via etiketten (se sorteringsetikett). */
     .st-key-sortering [data-testid="stButtonGroup"] { gap: 0 !important; }
     .st-key-sortering button {
         border: none !important;
         background: transparent !important;
         box-shadow: none !important;
-        padding: 0.1rem 0.6rem !important;
+        padding: 0.1rem 0.4rem !important;
         min-height: 0 !important;
         color: #5b6675 !important;
     }
     .st-key-sortering button:first-child { padding-left: 0 !important; }
     .st-key-sortering button:not(:last-child)::after {
         content: "|";
-        margin-left: 1.2rem;
+        margin-left: 0.8rem;
         color: #c5ccd6;
+        font-weight: 400;
     }
-    .st-key-sortering button[data-testid="stBaseButton-segmented_controlActive"] {
-        color: #2b6cb0 !important;
-        font-weight: 600;
-    }
+    .st-key-sortering strong,
+    .st-key-sortering strong * { color: #2b6cb0 !important; }
     .st-key-sortering button:hover { color: #2b6cb0 !important; }
 
     /* Länk till Libris-posten: som biblioteksnamnen, understruken bara vid hovring */
@@ -911,11 +920,12 @@ if "sok_sokterm" in st.session_state:
         st.markdown("Flera poster matchar. Välj ett alternativ i listan nedan.")
         with st.container(key="sortering"):
             st.segmented_control(
-                "Sortera", ["Relevans", "År ↓"], default="Relevans",
+                "Sortera", ["Relevans", "År"], default="Relevans",
+                format_func=sorteringsetikett,
                 key="sok_sortering", label_visibility="collapsed",
                 on_change=behall_sortering,
             )
-        sortering = "Nyast först" if st.session_state.get("sok_sortering") == "År ↓" else "Relevans"
+        sortering = "Nyast först" if st.session_state.get("sok_sortering") == "År" else "Relevans"
         ordning = list(range(len(verk_lista)))
         if sortering == "Nyast först":
             ordning.sort(key=lambda i: -utgivningsar(verk_lista[i]))
