@@ -1,13 +1,13 @@
 # Samsök – Nätverket Sydväst
 
-En liten webbapp som visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet som har en viss tryckt titel. Tänkt som stöd vid fjärrlån mellan biblioteken.
+En liten webbapp som visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet som har en viss titel, utifrån bibliotekens bestånd av tryckt material i LIBRIS. Tänkt som stöd vid fjärrlån mellan biblioteken.
 
 Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.app/
 
 ## Hur den fungerar
 
 1. Användaren skriver en titel eller ett ISBN i samma sökfält, valfritt med författare. Appen känner själv igen ISBN (10 eller 13 siffror).
-2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
+2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckt material (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och kontrollerar vilka bibliotek (sigler) som har titeln. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista, sorterad efter relevans eller nyast först. Sorteringen gäller de 20 mest relevanta träffarna från Libris.
 5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en lista över biblioteken i bokstavsordning. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog. Bibliotek med lånestatus (se nedan) har i stället en pil framför namnet; klickar man på det fälls raden ut och visar tillgänglighet per enhet.
@@ -56,7 +56,7 @@ Därefter visas Sveriges depåbibliotek och lånecentral (sigel Umdp) på samma 
 ## Begränsningar
 
 - Appen ser bara det bestånd biblioteken rapporterat till LIBRIS. Äldre bestånd som aldrig konverterats syns inte och måste sökas i respektive katalog.
-- Bara tryckta böcker, inte e-böcker, ljudböcker eller andra medier.
+- Bara tryckt material, inte e-böcker, ljudböcker eller andra medier.
 - Beståndet räknas för den första tryckta utgåvan av det valda verket. Har ett bibliotek bara en annan utgåva kan det visas utan bestånd. Folkbibliotekens egna kataloger slår ofta ihop utgåvor (t.ex. pocket och inbunden) i en post, vilket LIBRIS inte gör.
 - För bibliotek utan aktiverad lånestatus säger resultatet inget om tillgänglighet. Den syns i bibliotekets egen katalog.
 - Varför appen inte skrapar Arena direkt: flera av bibliotekens Arena-installationer har bot-skydd, och LIBRIS ger en enhetlig källa för alla nio.

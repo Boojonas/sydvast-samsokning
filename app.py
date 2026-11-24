@@ -126,7 +126,7 @@ def ar_isbn(sokterm: str) -> bool:
 def bygg_arena_titelfraga(sokterm: str) -> str:
     """Bygger en Arena-specifik titelfältssökning (title_index/titleMain_index)
     för djuplänkar till bibliotekens egna kataloger. mediaClass_index:book
-    begränsar till tryckta böcker, så e-boksposter (separata katalogposter i
+    begränsar till tryckt material, så e-boksposter (separata katalogposter i
     Arena, till skillnad från Libris) inte dyker upp som en extra träff."""
     ord_lista = re.sub(r'["()]', "", sokterm).split()
     grupper = [f"(title_index:{ord} OR titleMain_index:{ord})" for ord in ord_lista]
@@ -351,7 +351,7 @@ def bibliotek_med_bestand(verk: dict) -> set:
 # LUNDS UNIVERSITETSBIBLIOTEK - nästa steg i fjärrlånekedjan
 # ---------------------------------------------------------------------------
 # Lunds bibliotek med egen sigel i Libris (digitala resurser, Ldig/Ldix,
-# är utelämnade eftersom appen bara söker tryckta titlar).
+# är utelämnade eftersom appen bara söker tryckt material).
 LUND_SIGLER = {
     "L": "UB",
     "Lsam": "Sambib",
@@ -1267,14 +1267,14 @@ st.markdown('<div style="height:1.5rem"></div>', unsafe_allow_html=True)
 with st.expander("Om tjänsten"):
     st.markdown(
         "Samsök visar vilka av de nio folkbiblioteken i fjärrlånesamarbetet "
-        "som har en viss tryckt titel. Den bygger på det bestånd som biblioteken "
-        "rapporterat till LIBRIS.\n\n"
+        "som har en viss titel. Den bygger på bibliotekens rapporterade bestånd "
+        "av tryckt material i LIBRIS.\n\n"
         "**Varför kan ett bibliotek visas med Finns ej fast titeln står på hyllan?**\n"
         "- Äldre bestånd som aldrig förts in i LIBRIS syns inte.\n"
         "- LIBRIS håller isär olika utgåvor, till exempel pocket och inbunden. "
         "Har biblioteket en annan utgåva än den som visas kan det stå Finns ej. "
         "Bibliotekens egna kataloger slår ofta ihop utgåvorna.\n\n"
-        "**Bara tryckta titlar.** E-böcker, ljudböcker och andra medier ingår inte.\n\n"
+        "**Bara tryckt material.** E-böcker, ljudböcker och andra medier ingår inte.\n\n"
         "**Lånestatus** för biblioteken i samarbetet syns i respektive katalog. "
         "Klicka på bibliotekets namn. Bibliotek som har aktiverat Libris "
         "lånestatus (just nu Vellinge) visas också under Utlåningsstatus, och "
