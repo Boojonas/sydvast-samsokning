@@ -1108,10 +1108,15 @@ if "sok_sokterm" in st.session_state:
     # lånestatus) och länk till bibliotekets katalog.
     rader = []
     for kod, info in sorted(SIGLAR.items(), key=lambda kv: kv[1]["namn"]):
+        # Länken ska gälla den utgåva som valts: facklitteratur har en post per
+        # upplaga i bibliotekens kataloger, och upplagan kan avgöra fjärrlånet.
+        # Skönlitteratur slås ofta ihop i en post, som ändå hittas via ISBN.
         if soktyp_vy == "ISBN":
             arena_fraga = sokterm_vy
+        elif isbn_valt:
+            arena_fraga = isbn_valt
         else:
-            arena_fraga = bygg_arena_titelfraga(sokterm_vy)
+            arena_fraga = bygg_arena_titelfraga(post["titel"] if post else sokterm_vy)
             if forfattare_vy:
                 arena_fraga = f"{bygg_arena_forfattarfraga(forfattare_vy)} AND {arena_fraga}"
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
