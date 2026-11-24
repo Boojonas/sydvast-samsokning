@@ -561,7 +561,7 @@ def ar_kursbok(ex: dict) -> bool:
 
 def tillganglighet_text(exemplar: list) -> str:
     """Kort tillgänglighet för en enhet, utan lånepolicy: "4 av 7", "åter 3 dec",
-    "försenad" eller "Referensmaterial". Referensexemplar räknas inte."""
+    "Försenad" eller "Referensmaterial". Referensexemplar räknas inte."""
     lanbara = [ex for ex in exemplar if "referens" not in (ex["policy"] or "").lower()]
     if not lanbara:
         return "Referensmaterial"
@@ -574,7 +574,7 @@ def tillganglighet_text(exemplar: list) -> str:
     if kommande:
         return f"åter {kort_datum(kommande[0])}"
     if alla_datum:
-        return "försenad"
+        return "Försenad"
     return ", ".join(sorted({ex["status"] for ex in lanbara if ex["status"]})) or "–"
 
 
@@ -605,7 +605,7 @@ def sammanfatta_exemplar(exemplar: list, markera_kurs: bool = False) -> list:
         if kommande:
             rader.append((policy, kurs, f"åter {kort_datum(kommande[0])}"))
         elif alla_datum:
-            rader.append((policy, kurs, "försenad"))
+            rader.append((policy, kurs, "Försenad"))
         else:
             statusar = sorted({ex["status"] for ex in lista if ex["status"]})
             rader.append((policy, kurs, ", ".join(statusar) or "–"))

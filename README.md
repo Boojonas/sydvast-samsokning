@@ -37,7 +37,7 @@ Bibliotek som har aktiverat Libris lånestatus i sitt bibliotekssystem får en `
 https://vellingebibliotek.axiell.com/services/rest/libris/holding?ds=jdbc/bookit33&sigel=<sigel>&isbn=<ISBN>&bib_id=<kontrollnummer>
 ```
 
-Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i listan. När man fäller ut biblioteket visas tillgängligheten per enhet i bokstavsordning (utan lånepolicy), med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "försenad".
+Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i listan. När man fäller ut biblioteket visas tillgängligheten per enhet i bokstavsordning (utan lånepolicy), med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "Försenad".
 
 För BOOK-IT aktiveras tjänsten med kryssrutan *Visa lånestatus* och fältet *Sigel* under *Librisinställningar* på varje enhet.
 
