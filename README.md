@@ -10,8 +10,8 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 2. Appen gör **ett** anrop mot LIBRIS öppna sök-API (`https://libris.kb.se/find`), begränsat till tryckta böcker (`instanceCategory: saobf/Print`).
 3. Svaret är strukturerat som *verk → instans → exemplar*. Appen går igenom exemplaren lokalt och kontrollerar vilka bibliotek (sigler) som har titeln. Inga fler nätverksanrop görs.
 4. Ger sökningen flera olika verk får användaren välja rätt bok i en lista, sorterad efter relevans eller nyast först. Sorteringen gäller de 20 mest relevanta träffarna från Libris.
-5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en tabell över biblioteken. Varje biblioteksnamn är en djuplänk till samma sökning i bibliotekets egen Arena-katalog, där lånestatus syns.
-6. Har någon av Lunds universitetsbibliotek titeln visas det under tabellen (samma Libris-svar). Utlåningsstatus och lånepolicy hämtas samtidigt från Lunds lånestatustjänst – se nedan – och ligger klar när man fäller ut *Utlåningsstatus*.
+5. Resultatet visas som en bibliografisk beskrivning av utgåvan (titel, upphov, upplaga, utgivning, ISBN) med länk till posten i LIBRIS, följd av en lista över biblioteken i bokstavsordning. Klickar man på ett biblioteksnamn fälls raden ut och visar länk till samma sökning i bibliotekets egen Arena-katalog, och för bibliotek med lånestatus även tillgänglighet per enhet (se nedan).
+6. Har någon av Lunds universitetsbibliotek titeln visas det under listan (samma Libris-svar). Utlåningsstatus och lånepolicy hämtas samtidigt från Lunds lånestatustjänst – se nedan – och ligger klar när man fäller ut *Utlåningsstatus*.
 
 ## Biblioteken och deras sigler
 
@@ -37,7 +37,7 @@ Bibliotek som har aktiverat Libris lånestatus i sitt bibliotekssystem får en `
 https://vellingebibliotek.axiell.com/services/rest/libris/holding?ds=jdbc/bookit33&sigel=<sigel>&isbn=<ISBN>&bib_id=<kontrollnummer>
 ```
 
-Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i huvudtabellen. Detaljer per enhet visas under *Utlåningsstatus*, med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "försenad".
+Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i listan. När man fäller ut biblioteket visas tillgängligheten per enhet i bokstavsordning (utan lånepolicy), med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "försenad".
 
 För BOOK-IT aktiveras tjänsten med kryssrutan *Visa lånestatus* och fältet *Sigel* under *Librisinställningar* på varje enhet.
 
@@ -58,7 +58,7 @@ Därefter visas Sveriges depåbibliotek och lånecentral (sigel Umdp) på samma 
 - Appen ser bara det bestånd biblioteken rapporterat till LIBRIS. Äldre bestånd som aldrig konverterats syns inte och måste sökas i respektive katalog.
 - Bara tryckta böcker, inte e-böcker, ljudböcker eller andra medier.
 - Beståndet räknas för den första tryckta utgåvan av det valda verket. Har ett bibliotek bara en annan utgåva kan det visas utan bestånd. Folkbibliotekens egna kataloger slår ofta ihop utgåvor (t.ex. pocket och inbunden) i en post, vilket LIBRIS inte gör.
-- Resultatet säger inget om lånestatus. Den syns i bibliotekets egen katalog.
+- För bibliotek utan aktiverad lånestatus säger resultatet inget om tillgänglighet. Den syns i bibliotekets egen katalog.
 - Varför appen inte skrapar Arena direkt: flera av bibliotekens Arena-installationer har bot-skydd, och LIBRIS ger en enhetlig källa för alla nio.
 
 ## Köra lokalt

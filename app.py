@@ -90,8 +90,8 @@ SIGLAR = {
                 "https://vellingebibliotek.axiell.com/services/rest/libris/holding"
                 "?ds=jdbc/bookit33&sigel={sigel}&isbn={isbn}&bib_id={bib_id}"
             ),
-            "enheter": {"Vell": "Vellinge", "Holl": "Höllviken",
-                        "Skan": "Skanör", "Vib": "Västra Ingelstad"},
+            "enheter": {"Holl": "Höllviken", "Skan": "Skanör",
+                        "Vell": "Vellinge", "Vib": "Västra Ingelstad"},
         },
         "bestall_i_katalogen": True,  # fjärrlån beställs i Vellinges egen katalog
         "sok_url": (
@@ -559,6 +559,25 @@ def ar_kursbok(ex: dict) -> bool:
     return "kurs" in f"{ex.get('hylla', '')} {ex.get('plats', '')}".lower()
 
 
+def tillganglighet_text(exemplar: list) -> str:
+    """Kort tillgänglighet för en enhet, utan lånepolicy: "4 av 7", "åter 3 dec",
+    "försenad" eller "Referensmaterial". Referensexemplar räknas inte."""
+    lanbara = [ex for ex in exemplar if "referens" not in (ex["policy"] or "").lower()]
+    if not lanbara:
+        return "Referensmaterial"
+    inne = sum(1 for ex in lanbara if ex["status"].lower() in TILLGANGLIG_STATUS)
+    if inne:
+        return f"{inne} av {len(lanbara)}"
+    idag = date.today().isoformat()
+    alla_datum = sorted(ex["datum"] for ex in lanbara if ex["datum"])
+    kommande = [d for d in alla_datum if d >= idag]
+    if kommande:
+        return f"åter {kort_datum(kommande[0])}"
+    if alla_datum:
+        return "försenad"
+    return ", ".join(sorted({ex["status"] for ex in lanbara if ex["status"]})) or "–"
+
+
 def sammanfatta_exemplar(exemplar: list, markera_kurs: bool = False) -> list:
     """En rad per lånepolicy: (policy, kursbok, sammanfattning).
     Med markera_kurs får kursböcker en egen rad, eftersom de i regel inte
@@ -680,6 +699,59 @@ st.markdown(
     }
     .bestand td a:hover { text-decoration: underline; }
     .bestand td:last-child, .bestand th:last-child { text-align: right !important; }
+
+    /* Huvudlistan med utfällbara rader (ersätter tabellen) */
+    .lista-rubrik, .biblioteksrad > summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.6rem 1.25rem;
+    }
+    .lista-rubrik {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--rubrik);
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--linje);
+    }
+    .biblioteksrad > summary {
+        cursor: pointer;
+        list-style: none;
+        font-size: 1.05rem;
+        min-height: 2.6rem;
+        padding-top: 0.4rem;
+        padding-bottom: 0.4rem;
+    }
+    .biblioteksrad > summary::-webkit-details-marker { display: none; }
+    .biblioteksrad .namn {
+        font-weight: 600;
+        color: #2b6cb0;
+    }
+    .biblioteksrad .namn::before {
+        content: "";
+        display: inline-block;
+        width: 0.45rem;
+        height: 0.45rem;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(-45deg);
+        margin: 0 0.85rem 0.12rem 0.1rem;
+        transition: transform 0.15s;
+    }
+    .biblioteksrad[open] .namn::before { transform: rotate(45deg); }
+    .biblioteksrad > summary:hover .namn { text-decoration: underline; }
+    .biblioteksrad[open] > summary .etikett { display: none; }
+    .enheter { padding: 0 1.25rem 0.75rem 2.6rem; }
+    .enhet {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        color: #3a4555;
+    }
+    .enheter .katalog { padding-top: 0.35rem; }
 
     /* Statusetiketter */
     .etikett {
@@ -1022,8 +1094,11 @@ if "sok_sokterm" in st.session_state:
             "eller pröva med ISBN."
         )
 
+    # Huvudlistan: en rad per bibliotek (kommun). Raden fälls ut med ett klick
+    # på namnet och visar då tillgänglighet per enhet (för bibliotek med
+    # lånestatus) och länk till bibliotekets katalog.
     rader = []
-    for kod, info in SIGLAR.items():
+    for kod, info in sorted(SIGLAR.items(), key=lambda kv: kv[1]["namn"]):
         if soktyp_vy == "ISBN":
             arena_fraga = sokterm_vy
         else:
@@ -1031,17 +1106,38 @@ if "sok_sokterm" in st.session_state:
             if forfattare_vy:
                 arena_fraga = f"{bygg_arena_forfattarfraga(forfattare_vy)} AND {arena_fraga}"
         sok_lank = info["sok_url"].format(query=quote_plus(arena_fraga))
-        kommun_lankad = (
-            f'<a href="{html.escape(sok_lank, quote=True)}" target="_blank">'
-            f"{html.escape(info['namn'])}</a>"
-        )
+
         if kod in med_bestand:
             status = '<span class="etikett finns">Finns</span>'
         else:
             status = '<span class="etikett saknas">Finns ej</span>'
-        rader.append(f"<tr><td>{kommun_lankad}</td><td>{status}</td></tr>")
 
-    # Sammanfattningen står överst i tabellens ram i stället för i en egen
+        innehall = []
+        if kod in lanestatus_per_kod and kod in med_bestand:
+            enheter = info["lanestatus"]["enheter"]
+            svar = lanestatus_per_kod[kod]
+            if all(v is None for v in svar.values()):
+                innehall.append('<div class="enhet"><span>Utlåningsstatus kunde inte hämtas</span></div>')
+            else:
+                for sigel in sorted((s_ for s_ in svar if svar[s_]), key=lambda s_: enheter[s_]):
+                    innehall.append(
+                        f'<div class="enhet"><span>{html.escape(enheter[sigel])}</span>'
+                        f"<span>{html.escape(tillganglighet_text(svar[sigel]))}</span></div>")
+        if info.get("bestall_i_katalogen") and kod in med_bestand:
+            lank = info["sok_url"].format(query=quote_plus(isbn_valt)) if isbn_valt else sok_lank
+            lanktext = "Beställ i katalogen ↗"
+        else:
+            lank, lanktext = sok_lank, "Visa i katalogen ↗"
+        innehall.append(
+            f'<div class="katalog"><a class="postlank" href="{html.escape(lank, quote=True)}" '
+            f'target="_blank">{lanktext}</a></div>')
+
+        rader.append(
+            '<details class="biblioteksrad"><summary>'
+            f'<span class="namn">{html.escape(info["namn"])}</span>{status}</summary>'
+            f'<div class="enheter">{"".join(innehall)}</div></details>')
+
+    # Sammanfattningen står överst i listans ram i stället för i en egen
     # färgad ruta, så att resultatet hålls ihop och följer sidans färger
     antal_traffar = len(med_bestand)
     if antal_traffar > 0:
@@ -1055,57 +1151,11 @@ if "sok_sokterm" in st.session_state:
     topp = f'<div class="bestand-topp">{sammanfattning}</div>' if sammanfattning else ""
 
     st.markdown(
-        f'<div class="bestand">{topp}<table>'
-        "<thead><tr><th>Bibliotek</th><th>Status</th></tr></thead>"
-        f"<tbody>{''.join(rader)}</tbody></table></div>",
+        f'<div class="bestand">{topp}'
+        '<div class="lista-rubrik"><span>Bibliotek</span><span>Status</span></div>'
+        f"{''.join(rader)}</div>",
         unsafe_allow_html=True,
     )
-
-    # --- Utlåningsstatus för samarbetets bibliotek med lånestatus ---
-    visa_status = [k for k in lanestatus_per_kod if k in med_bestand]
-    if visa_status:
-        with st.container(key="nasta-samarbetet"):
-            with st.expander("Utlåningsstatus"):
-                rader_status, bestallningslankar = [], []
-                for kod in visa_status:
-                    info = SIGLAR[kod]
-                    enheter = info["lanestatus"]["enheter"]
-                    svar = lanestatus_per_kod[kod]
-                    if all(v is None for v in svar.values()):
-                        rader_status.append(
-                            f"<tr><td>{html.escape(info['namn'])}</td><td></td>"
-                            "<td>Kunde inte hämtas</td></tr>")
-                        continue
-                    for sigel, exemplar in svar.items():
-                        if not exemplar:
-                            continue
-                        # "Vellinge · Höllviken", men bara "Vellinge" för huvudbiblioteket
-                        enhet = enheter[sigel]
-                        namn = html.escape(info["namn"] if enhet == info["namn"]
-                                           else f"{info['namn']} · {enhet}")
-                        for policy, _kurs, tillganglighet in sammanfatta_exemplar(exemplar):
-                            rader_status.append(
-                                f"<tr><td>{namn}</td><td>{html.escape(policy)}</td>"
-                                f"<td>{html.escape(tillganglighet)}</td></tr>")
-                    if info.get("bestall_i_katalogen"):
-                        fraga = isbn_valt or bygg_arena_titelfraga(sokterm_vy)
-                        lank = info["sok_url"].format(query=quote_plus(fraga))
-                        bestallningslankar.append(
-                            f'{html.escape(info["namn"])}: <a class="postlank" '
-                            f'href="{html.escape(lank, quote=True)}" target="_blank">'
-                            "Beställ i katalogen ↗</a>")
-                st.markdown(
-                    '<div class="bestand lund-status"><table>'
-                    "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
-                    "<th>Tillgänglighet</th></tr></thead>"
-                    f"<tbody>{''.join(rader_status)}</tbody></table></div>",
-                    unsafe_allow_html=True,
-                )
-                if bestallningslankar:
-                    st.markdown(
-                        '<div class="bestallning">' + " · ".join(bestallningslankar) + "</div>",
-                        unsafe_allow_html=True,
-                    )
 
     # --- Nästa steg i fjärrlånekedjan: Lunds UB, därefter Depåbiblioteket ---
     # Vilka bibliotek som har titeln kommer från samma Libris-svar och visas
