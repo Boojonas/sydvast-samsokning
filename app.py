@@ -730,6 +730,11 @@ st.markdown(
     /* Osynlig pil håller samma vänstermarginal som raderna med pil */
     .biblioteksrad.enkel .namn::before { border-color: transparent; }
     .biblioteksrad > summary::-webkit-details-marker { display: none; }
+    /* Ingen svart fokusram efter klick eller omritning; tangentbordsfokus
+       markeras i stället med understruket namn */
+    .biblioteksrad > summary:focus,
+    .biblioteksrad > summary:focus-visible { outline: none; }
+    .biblioteksrad > summary:focus-visible .namn { text-decoration: underline; }
     .biblioteksrad .namn {
         font-weight: 600;
         color: #2b6cb0;
