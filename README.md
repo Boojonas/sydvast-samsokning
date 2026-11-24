@@ -25,7 +25,7 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 | Staffanstorp | Staf |
 | Svedala | Sved |
 | Trelleborg | Trel |
-| Vellinge | Vell |
+| Vellinge | Vell, Holl, Skan, Vib (Vellinge, Höllviken, Skanör, Västra Ingelstad) |
 
 Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. Exemplar med sigler som börjar på `7` (skolbibliotek) räknas inte, eftersom de inte fjärrlånar.
 

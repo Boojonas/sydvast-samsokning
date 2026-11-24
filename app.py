@@ -80,7 +80,8 @@ SIGLAR = {
         "sok_url": ARENA_STANDARDMALL.format(domän="bibliotek.trelleborg.se"),
     },
     "Vell": {
-        "namn": "Vellinge", "sigler": ["Vell"],
+        # Kommunens fyra folkbibliotek: Vellinge, Höllviken, Skanör, Västra Ingelstad
+        "namn": "Vellinge", "sigler": ["Vell", "Holl", "Skan", "Vib"],
         "sok_url": (
             "https://bibliotek.vellinge.se/web/arena/search"
             "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
