@@ -973,7 +973,7 @@ st.markdown(
 st.markdown(
     '<p class="ingress">'
     "Gemensam sökfunktion för biblioteken i fjärrlånesamarbetet. Bygger på "
-    "bibliotekens rapporterade bestånd av tryckta titlar i LIBRIS.</p>",
+    "bibliotekens rapporterade bestånd av tryckt material i LIBRIS.</p>",
     unsafe_allow_html=True,
 )
 
