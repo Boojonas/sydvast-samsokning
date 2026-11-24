@@ -29,6 +29,18 @@ Appen körs på Streamlit Community Cloud: https://sydvast-samsokning.streamlit.
 
 Siglerna och länkarna till bibliotekens kataloger finns i `SIGLAR` i `app.py`. Exemplar med sigler som börjar på `7` (skolbibliotek) räknas inte, eftersom de inte fjärrlånar.
 
+## Lånestatus för samarbetets bibliotek
+
+Bibliotek som har aktiverat Libris lånestatus i sitt bibliotekssystem får en `lanestatus`-post i `SIGLAR` (adressmall och enheter med sigel). Just nu gäller det Vellinge (BOOK-IT, schema `bookit33`):
+
+```
+https://vellingebibliotek.axiell.com/services/rest/libris/holding?ds=jdbc/bookit33&sigel=<sigel>&isbn=<ISBN>&bib_id=<kontrollnummer>
+```
+
+Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i huvudtabellen. Detaljer per enhet visas under *Utlåningsstatus*, med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "försenad".
+
+För BOOK-IT aktiveras tjänsten med kryssrutan *Visa lånestatus* och fältet *Sigel* under *Librisinställningar* på varje enhet.
+
 ## Lunds universitetsbibliotek och Depåbiblioteket
 
 Lunds sigler står i `LUND_SIGLER` i `app.py` (digitala resurser, Ldig/Ldix, är utelämnade). Status hämtas från Lunds tjänst för [Libris lånestatus](https://kb.se/download/18.5c4746ff197581d1a74a5e/1749808286539/Libris%20l%C3%A5nestatus%202025.pdf), samma som Libris själv använder:

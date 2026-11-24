@@ -17,6 +17,7 @@ import requests
 import re
 import socket
 import time
+from datetime import date
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus
@@ -82,6 +83,17 @@ SIGLAR = {
     "Vell": {
         # Kommunens fyra folkbibliotek: Vellinge, Höllviken, Skanör, Västra Ingelstad
         "namn": "Vellinge", "sigler": ["Vell", "Holl", "Skan", "Vib"],
+        # Libris lånestatus i BOOK-IT (schema bookit33). Ett anrop per enhet;
+        # tjänsten kräver bib_id men hittar också exemplar via ISBN.
+        "lanestatus": {
+            "url": (
+                "https://vellingebibliotek.axiell.com/services/rest/libris/holding"
+                "?ds=jdbc/bookit33&sigel={sigel}&isbn={isbn}&bib_id={bib_id}"
+            ),
+            "enheter": {"Vell": "Vellinge", "Holl": "Höllviken",
+                        "Skan": "Skanör", "Vib": "Västra Ingelstad"},
+        },
+        "bestall_i_katalogen": True,  # fjärrlån beställs i Vellinges egen katalog
         "sok_url": (
             "https://bibliotek.vellinge.se/web/arena/search"
             "?p_p_id=searchResult_WAR_arenaportlet&p_p_lifecycle=1&p_p_state=normal"
@@ -527,6 +539,11 @@ def kort_datum(datum: str) -> str:
     return f"{int(traff.group(3))} {MANADER[int(traff.group(2)) - 1]}"
 
 
+# Statusar som betyder att exemplaret står på hyllan (Koha/Quria: "Tillgänglig",
+# BOOK-IT: "Ej utlånad")
+TILLGANGLIG_STATUS = {"tillgänglig", "ej utlånad"}
+
+
 def ar_kursbok(ex: dict) -> bool:
     """Kursbok om hyllsignum eller placering nämner "kurs" (Kursbok,
     Kurslitteratur, Kursbokssamling o.s.v.)."""
@@ -550,13 +567,17 @@ def sammanfatta_exemplar(exemplar: list, markera_kurs: bool = False) -> list:
         if "referens" in policy.lower():
             rader.append((policy, kurs, ""))
             continue
-        tillgangliga = sum(1 for ex in lista if ex["status"].lower() == "tillgänglig")
+        tillgangliga = sum(1 for ex in lista if ex["status"].lower() in TILLGANGLIG_STATUS)
         if tillgangliga:
             rader.append((policy, kurs, f"{tillgangliga} av {len(lista)}"))
             continue
-        datum = sorted(ex["datum"] for ex in lista if ex["datum"])
-        if datum:
-            rader.append((policy, kurs, f"åter {kort_datum(datum[0])}"))
+        idag = date.today().isoformat()
+        alla_datum = sorted(ex["datum"] for ex in lista if ex["datum"])
+        kommande = [d for d in alla_datum if d >= idag]
+        if kommande:
+            rader.append((policy, kurs, f"åter {kort_datum(kommande[0])}"))
+        elif alla_datum:
+            rader.append((policy, kurs, "försenad"))
         else:
             statusar = sorted({ex["status"] for ex in lista if ex["status"]})
             rader.append((policy, kurs, ", ".join(statusar) or "–"))
@@ -751,6 +772,8 @@ st.markdown(
     .st-key-sortering strong,
     .st-key-sortering strong * { color: #2b6cb0 !important; }
     .st-key-sortering button:hover { color: #2b6cb0 !important; }
+
+    .bestallning { color: #5b6675; }
 
     /* Länk till Libris-posten: som biblioteksnamnen, understruken bara vid hovring */
     a.postlank { text-decoration: none; }
@@ -951,6 +974,25 @@ if "sok_sokterm" in st.session_state:
             post = katalogpost(valt_verk, instans, sokterm_vy)
         med_bestand = bibliotek_med_bestand(valt_verk)
 
+    # Lånestatus för samarbetets bibliotek som har aktiverat den (just nu
+    # Vellinge). Hämtas före tabellen, eftersom exemplar som bara finns i den
+    # lokala katalogen (t.ex. äldre bestånd) också ska ge "Finns".
+    lanestatus_per_kod = {}
+    isbn_valt = ""
+    if post:
+        isbn_valt = re.sub(r"[^0-9Xx]", "", post["isbn"][0]) if post["isbn"] else ""
+        bib_id_valt = ""
+        lanestatus_bibliotek = {k: i for k, i in SIGLAR.items() if i.get("lanestatus")}
+        if lanestatus_bibliotek:
+            bib_id_valt = kontrollnummer_for(forsta_fysiska_instansen(valt_verk))
+        if lanestatus_bibliotek and (isbn_valt or bib_id_valt):
+            for kod, info in lanestatus_bibliotek.items():
+                ls = info["lanestatus"]
+                lanestatus_per_kod[kod] = hamta_status_for_sigler(
+                    ls["url"], bib_id_valt or "0", isbn_valt, list(ls["enheter"]))
+                if any(status_per_enhet for status_per_enhet in lanestatus_per_kod[kod].values()):
+                    med_bestand.add(kod)
+
     if post:
         rubrik = md(post["titel"])
         if post["undertitel"]:
@@ -1009,6 +1051,52 @@ if "sok_sokterm" in st.session_state:
         f"<tbody>{''.join(rader)}</tbody></table></div>",
         unsafe_allow_html=True,
     )
+
+    # --- Utlåningsstatus för samarbetets bibliotek med lånestatus ---
+    visa_status = [k for k in lanestatus_per_kod if k in med_bestand]
+    if visa_status:
+        with st.container(key="nasta-samarbetet"):
+            with st.expander("Utlåningsstatus"):
+                rader_status, bestallningslankar = [], []
+                for kod in visa_status:
+                    info = SIGLAR[kod]
+                    enheter = info["lanestatus"]["enheter"]
+                    svar = lanestatus_per_kod[kod]
+                    if all(v is None for v in svar.values()):
+                        rader_status.append(
+                            f"<tr><td>{html.escape(info['namn'])}</td><td></td>"
+                            "<td>Kunde inte hämtas</td></tr>")
+                        continue
+                    for sigel, exemplar in svar.items():
+                        if not exemplar:
+                            continue
+                        # "Vellinge · Höllviken", men bara "Vellinge" för huvudbiblioteket
+                        enhet = enheter[sigel]
+                        namn = html.escape(info["namn"] if enhet == info["namn"]
+                                           else f"{info['namn']} · {enhet}")
+                        for policy, _kurs, tillganglighet in sammanfatta_exemplar(exemplar):
+                            rader_status.append(
+                                f"<tr><td>{namn}</td><td>{html.escape(policy)}</td>"
+                                f"<td>{html.escape(tillganglighet)}</td></tr>")
+                    if info.get("bestall_i_katalogen"):
+                        fraga = isbn_valt or bygg_arena_titelfraga(sokterm_vy)
+                        lank = info["sok_url"].format(query=quote_plus(fraga))
+                        bestallningslankar.append(
+                            f'{html.escape(info["namn"])}: <a class="postlank" '
+                            f'href="{html.escape(lank, quote=True)}" target="_blank">'
+                            "Beställ i katalogen ↗</a>")
+                st.markdown(
+                    '<div class="bestand lund-status"><table>'
+                    "<thead><tr><th>Bibliotek</th><th>Lånepolicy</th>"
+                    "<th>Tillgänglighet</th></tr></thead>"
+                    f"<tbody>{''.join(rader_status)}</tbody></table></div>",
+                    unsafe_allow_html=True,
+                )
+                if bestallningslankar:
+                    st.markdown(
+                        '<div class="bestallning">' + " · ".join(bestallningslankar) + "</div>",
+                        unsafe_allow_html=True,
+                    )
 
     # --- Nästa steg i fjärrlånekedjan: Lunds UB, därefter Depåbiblioteket ---
     # Vilka bibliotek som har titeln kommer från samma Libris-svar och visas
@@ -1112,7 +1200,9 @@ with st.expander("Om tjänsten"):
         "Bibliotekens egna kataloger slår ofta ihop utgåvorna.\n\n"
         "**Bara tryckta titlar.** E-böcker, ljudböcker och andra medier ingår inte.\n\n"
         "**Lånestatus** för biblioteken i samarbetet syns i respektive katalog. "
-        "Klicka på bibliotekets namn.\n\n"
+        "Klicka på bibliotekets namn. Bibliotek som har aktiverat Libris "
+        "lånestatus (just nu Vellinge) visas också under Utlåningsstatus, och "
+        "då räknas även exemplar som bara finns i bibliotekets egen katalog.\n\n"
         "**Lunds universitetsbibliotek** och **Sveriges depåbibliotek och "
         "lånecentral** visas under tabellen, med utlåningsstatus och lånepolicy "
         "från bibliotekens egna system när de har titeln.\n\n"
