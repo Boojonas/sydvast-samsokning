@@ -39,7 +39,28 @@ https://vellingebibliotek.axiell.com/services/rest/libris/holding?ds=jdbc/bookit
 
 Appen frågar varje enhet (sigel) samtidigt, med kontrollnummer och ISBN. BOOK-IT kräver `bib_id` men hittar också exemplar via ISBN, så exemplar som bara finns i den lokala katalogen ger "Finns" i listan. När man fäller ut biblioteket visas tillgängligheten per enhet i bokstavsordning (utan lånepolicy), med länk för beställning i katalogen när biblioteket vill det (`bestall_i_katalogen`). "Ej utlånad" och "Tillgänglig" räknas som inne; passerat återlämningsdatum visas som "Försenad".
 
-För BOOK-IT aktiveras tjänsten med kryssrutan *Visa lånestatus* och fältet *Sigel* under *Librisinställningar* på varje enhet.
+### Så kommer ett BOOK-IT-bibliotek igång
+
+1. **Aktivera lånestatus.** Kryssa i *Visa lånestatus* under *Librisinställningar* på varje enhet i organisationsstrukturen.
+2. **Fyll i sigeln.** Skriv enhetens Libris-sigel i fältet *Sigel* under samma *Librisinställningar*. Fältet är obligatoriskt, även om manualen inte nämner det: tjänsten använder det för att hitta enheten, och utan det svarar den `databaseError`.
+3. **Ta reda på server och dataschema.** Båda finns under systemparametrarna i BOOK-IT: *HOST_NAME* är servern (t.ex. `vellingebibliotek.axiell.com`) och *HOST_FTP_USER* har samma namn som dataschemat (t.ex. `bookit33`). Att de två namnen sammanfaller är bekräftat för Vellinge men inte för alla installationer, så testa adressen (steg 4).
+4. **Testa adressen** i webbläsaren med en egen sigel och ISBN för en bok som enheten har:
+
+   ```
+   https://<HOST_NAME>/services/rest/libris/holding?ds=jdbc/<HOST_FTP_USER>&sigel=<sigel>&isbn=<ISBN>&bib_id=0
+   ```
+
+   | Svar | Betyder |
+   |---|---|
+   | Exemplar med status | Allt fungerar. |
+   | Tom `<Item_Information/>` | Tjänsten nås, men inga exemplar matchar. Kontrollera ISBN och att enheten har boken. |
+   | `databaseError` | Sigelfältet saknas eller stämmer inte på enheten (steg 2). |
+   | `Missing parameter 'sigel'` | Sigeln saknas i adressen. |
+   | Fel eller ingen sida alls | Fel server eller schema, eller lånestatus är inte aktiverad. |
+
+5. **Meddela samarbetet** adressen, enheternas sigler och namn, och om fjärrlån ska beställas i den egna katalogen eller via LIBRIS. Biblioteket läggs då in med en `lanestatus`-post i `SIGLAR`.
+
+Bibliotek med Quria eller Koha har andra inställningar, men tjänsten ska på samma sätt svara per sigel.
 
 ## Lunds universitetsbibliotek och Depåbiblioteket
 
